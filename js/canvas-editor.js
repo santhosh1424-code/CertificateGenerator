@@ -315,7 +315,11 @@ class CanvasEditor {
     const padding = parseInt(field.padding) || 0;
     const availWidth = Math.max(10, field.width - (2 * padding));
 
-    // AUTO FIT: Reduce font size ONLY when text width exceeds available width and autoResize is ON
+    // AUTO FIT RULE:
+    // Resizing the bounding box MUST NEVER modify field.fontSize!
+    // If Auto Fit is OFF (autoResize === false): Always use exact saved masterFontSize. Never increase or decrease field.fontSize.
+    // If Auto Fit is ON (autoResize !== false): Keep saved masterFontSize. Only during rendering, if text width exceeds availWidth,
+    // temporarily reduce currentFontSize down to minFontSize. Do NOT overwrite field.fontSize in memory or IndexedDB.
     const isAutoFitOn = field.autoResize !== false && field.autoResize !== 'false' && field.autoFit !== false;
     if (isAutoFitOn && availWidth > 0) {
       let measuredW = ctx.measureText(textToDraw).width;
@@ -501,9 +505,21 @@ class CanvasEditor {
     e.stopPropagation();
     const template = window.appState.getActiveTemplate();
     if (field.lockPosition || field.isLocked || (template && template.isLocked) || this.editorLocked) return;
+
     this.isResizing = true;
     this.resizeHandle = handleType;
     this.dragTarget = field;
+
+    const mousePos = this.getCanvasMouseCoordinates(e);
+    this.initialBounds = {
+      x: field.x,
+      y: field.y,
+      width: field.width,
+      height: field.height,
+      mouseX: mousePos.x,
+      mouseY: mousePos.y
+    };
+
     this.safePushHistory();
   }
 
@@ -562,27 +578,47 @@ class CanvasEditor {
         this.dragTarget.x = newX;
         this.dragTarget.y = newY;
         this.drawCanvas();
-      } else if (this.isResizing) {
+      } else if (this.isResizing && this.initialBounds) {
+        const dx = mousePos.x - this.initialBounds.mouseX;
+        const dy = mousePos.y - this.initialBounds.mouseY;
+
+        let newX = this.initialBounds.x;
+        let newY = this.initialBounds.y;
+        let newW = this.initialBounds.width;
+        let newH = this.initialBounds.height;
+
         if (this.resizeHandle.includes('e')) {
-          this.dragTarget.width = Math.max(20, mousePos.x - this.dragTarget.x);
+          newW = Math.max(20, this.initialBounds.width + dx);
         }
         if (this.resizeHandle.includes('s')) {
-          this.dragTarget.height = Math.max(10, mousePos.y - this.dragTarget.y);
+          newH = Math.max(10, this.initialBounds.height + dy);
         }
         if (this.resizeHandle.includes('w')) {
-          const diffX = mousePos.x - this.dragTarget.x;
-          if (this.dragTarget.width - diffX >= 20) {
-            this.dragTarget.x = mousePos.x;
-            this.dragTarget.width -= diffX;
+          const candidateW = this.initialBounds.width - dx;
+          if (candidateW >= 20) {
+            newX = this.initialBounds.x + dx;
+            newW = candidateW;
           }
         }
         if (this.resizeHandle.includes('n')) {
-          const diffY = mousePos.y - this.dragTarget.y;
-          if (this.dragTarget.height - diffY >= 10) {
-            this.dragTarget.y = mousePos.y;
-            this.dragTarget.height -= diffY;
+          const candidateH = this.initialBounds.height - dy;
+          if (candidateH >= 10) {
+            newY = this.initialBounds.y + dy;
+            newH = candidateH;
           }
         }
+
+        newX = Math.max(0, Math.min(template.width - 20, newX));
+        newY = Math.max(0, Math.min(template.height - 10, newY));
+        newW = Math.min(template.width - newX, newW);
+        newH = Math.min(template.height - newY, newH);
+
+        this.dragTarget.x = newX;
+        this.dragTarget.y = newY;
+        this.dragTarget.width = newW;
+        this.dragTarget.height = newH;
+
+        // CRITICAL SPECIFICATION: Resizing bounding box MUST NEVER modify field.fontSize!
         this.drawCanvas();
       }
     });
@@ -598,6 +634,7 @@ class CanvasEditor {
       this.isResizing = false;
       this.dragTarget = null;
       this.resizeHandle = null;
+      this.initialBounds = null;
     });
   }
 
