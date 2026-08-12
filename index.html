@@ -316,7 +316,7 @@
             <!-- Dynamic Linked Excel Column Selector -->
             <div class="prop-group" style="background: rgba(59, 130, 246, 0.08); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--btn-primary);">
               <label class="prop-label" style="color: var(--btn-primary);">Linked Excel Column</label>
-              <select class="select-input" id="prop-linked-column" onchange="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).linkedColumn = this.value, window.canvasEditor.drawCanvas())"></select>
+              <select class="select-input" id="prop-linked-column" onchange="window.canvasEditor.saveActiveFieldProperty('linkedColumn', this.value)"></select>
             </div>
 
             <div style="background: var(--bg-card); padding: 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
@@ -326,28 +326,28 @@
 
             <div class="prop-group">
               <label class="prop-label">X Position (px)</label>
-              <input type="number" class="input-field" id="prop-x-pos" oninput="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).x = parseInt(this.value) || 0, window.canvasEditor.drawCanvas())">
+              <input type="number" class="input-field" id="prop-x-pos" oninput="window.canvasEditor.saveActiveFieldProperty('x', this.value)">
             </div>
 
             <div class="prop-group">
               <label class="prop-label">Y Position (px)</label>
-              <input type="number" class="input-field" id="prop-y-pos" oninput="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).y = parseInt(this.value) || 0, window.canvasEditor.drawCanvas())">
+              <input type="number" class="input-field" id="prop-y-pos" oninput="window.canvasEditor.saveActiveFieldProperty('y', this.value)">
             </div>
 
             <div class="prop-group">
               <label class="prop-label">Box Width (px)</label>
-              <input type="number" class="input-field" id="prop-box-width" oninput="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).width = parseInt(this.value) || 50, window.canvasEditor.drawCanvas())">
+              <input type="number" class="input-field" id="prop-box-width" oninput="window.canvasEditor.saveActiveFieldProperty('width', this.value)">
             </div>
 
             <div class="prop-group">
               <label class="prop-label">Box Height (px)</label>
-              <input type="number" class="input-field" id="prop-box-height" oninput="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).height = parseInt(this.value) || 20, window.canvasEditor.drawCanvas())">
+              <input type="number" class="input-field" id="prop-box-height" oninput="window.canvasEditor.saveActiveFieldProperty('height', this.value)">
             </div>
 
             <!-- Categorized Font Family Selector with Individual Typeface Preview Styling -->
             <div class="prop-group">
               <label class="prop-label">Font Family</label>
-              <select class="select-input" id="prop-font-family" onchange="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).fontFamily = this.value, window.canvasEditor.drawCanvas())">
+              <select class="select-input" id="prop-font-family" onchange="window.canvasEditor.saveActiveFieldProperty('fontFamily', this.value)">
                 <optgroup label="Modern Sans Serif">
                   <option value="Inter" style="font-family: 'Inter', sans-serif;">Inter</option>
                   <option value="Poppins" style="font-family: 'Poppins', sans-serif;">Poppins</option>
@@ -376,23 +376,23 @@
 
             <div class="prop-group">
               <label class="prop-label">Font Size (px, 8-200)</label>
-              <input type="number" class="input-field" id="prop-font-size" min="8" max="200" oninput="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).fontSize = Math.min(200, Math.max(8, parseInt(this.value) || 12)), window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).maxFontSize = Math.min(200, Math.max(8, parseInt(this.value) || 12)), window.canvasEditor.drawCanvas())">
+              <input type="number" class="input-field" id="prop-font-size" min="8" max="200" oninput="window.canvasEditor.saveActiveFieldProperty('fontSize', this.value)">
             </div>
 
             <div style="display: flex; gap: 12px; font-size: 0.8rem; margin: 4px 0;">
-              <label><input type="checkbox" id="prop-bold" onchange="window.appState.getActiveTemplate() && (f=window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId), f.bold=this.checked, f.fontWeight=this.checked?'bold':'normal', window.canvasEditor.drawCanvas())"> <strong>B</strong></label>
-              <label><input type="checkbox" id="prop-italic" onchange="window.appState.getActiveTemplate() && (f=window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId), f.italic=this.checked, f.fontStyle=this.checked?'italic':'normal', window.canvasEditor.drawCanvas())"> <em>I</em></label>
-              <label><input type="checkbox" id="prop-underline" onchange="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).underline = this.checked, window.canvasEditor.drawCanvas())"> <u>U</u></label>
+              <label><input type="checkbox" id="prop-bold" onchange="window.canvasEditor.saveActiveFieldProperty('bold', this.checked)"> <strong>B</strong></label>
+              <label><input type="checkbox" id="prop-italic" onchange="window.canvasEditor.saveActiveFieldProperty('italic', this.checked)"> <em>I</em></label>
+              <label><input type="checkbox" id="prop-underline" onchange="window.canvasEditor.saveActiveFieldProperty('underline', this.checked)"> <u>U</u></label>
             </div>
 
             <div class="prop-group">
               <label class="prop-label">Text Color</label>
-              <input type="color" class="input-field" id="prop-color" oninput="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).color = this.value, window.canvasEditor.drawCanvas())">
+              <input type="color" class="input-field" id="prop-color" oninput="window.canvasEditor.saveActiveFieldProperty('color', this.value)">
             </div>
 
             <div class="prop-group">
               <label class="prop-label">Horizontal Alignment</label>
-              <select class="select-input" id="prop-align" onchange="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).textAlign = this.value, window.canvasEditor.drawCanvas())">
+              <select class="select-input" id="prop-align" onchange="window.canvasEditor.saveActiveFieldProperty('textAlign', this.value)">
                 <option value="center">Center</option>
                 <option value="left">Left</option>
                 <option value="right">Right</option>
@@ -401,7 +401,7 @@
 
             <div class="prop-group">
               <label class="prop-label">Vertical Alignment</label>
-              <select class="select-input" id="prop-valign" onchange="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).verticalAlign = this.value, window.canvasEditor.drawCanvas())">
+              <select class="select-input" id="prop-valign" onchange="window.canvasEditor.saveActiveFieldProperty('verticalAlign', this.value)">
                 <option value="middle">Middle</option>
                 <option value="top">Top</option>
                 <option value="bottom">Bottom</option>
@@ -410,17 +410,17 @@
 
             <div class="toggle-row" style="margin-top: 6px;">
               <span style="font-size: 0.8rem; font-weight: 600;">Auto Fit Font</span>
-              <input type="checkbox" id="prop-autofit" onchange="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).autoResize = this.checked, window.canvasEditor.drawCanvas())">
+              <input type="checkbox" id="prop-autofit" onchange="window.canvasEditor.saveActiveFieldProperty('autoResize', this.checked)">
             </div>
 
             <div class="toggle-row">
               <span style="font-size: 0.8rem; font-weight: 600;">Word Wrap</span>
-              <input type="checkbox" id="prop-wordwrap" onchange="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).wordWrap = this.checked, window.canvasEditor.drawCanvas())">
+              <input type="checkbox" id="prop-wordwrap" onchange="window.canvasEditor.saveActiveFieldProperty('wordWrap', this.checked)">
             </div>
 
             <div class="toggle-row">
               <span style="font-size: 0.8rem; font-weight: 600;">Lock Position</span>
-              <input type="checkbox" id="prop-lock" onchange="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).lockPosition = this.checked, window.canvasEditor.drawCanvas())">
+              <input type="checkbox" id="prop-lock" onchange="window.canvasEditor.saveActiveFieldProperty('lockPosition', this.checked)">
             </div>
 
             <!-- Professional Template Lock System Card -->
@@ -688,18 +688,18 @@
   <div id="toast-container"></div>
 
   <!-- JS Modules (Cache-Busted for Production Stability) -->
-  <script src="js/state.js?v=1.0.3"></script>
-  <script src="js/storage.js?v=1.0.3"></script>
-  <script src="js/font-manager.js?v=1.0.3"></script>
-  <script src="js/template-manager.js?v=1.0.3"></script>
-  <script src="js/excel-manager.js?v=1.0.3"></script>
-  <script src="js/auto-mapper.js?v=1.0.3"></script>
-  <script src="js/canvas-editor.js?v=1.0.3"></script>
-  <script src="js/generator-engine.js?v=1.0.3"></script>
-  <script src="js/progress-manager.js?v=1.0.3"></script>
-  <script src="js/reports-manager.js?v=1.0.3"></script>
-  <script src="js/config-manager.js?v=1.0.3"></script>
-  <script src="js/app.js?v=1.0.3"></script>
+  <script src="js/state.js?v=1.0.4"></script>
+  <script src="js/storage.js?v=1.0.4"></script>
+  <script src="js/font-manager.js?v=1.0.4"></script>
+  <script src="js/template-manager.js?v=1.0.4"></script>
+  <script src="js/excel-manager.js?v=1.0.4"></script>
+  <script src="js/auto-mapper.js?v=1.0.4"></script>
+  <script src="js/canvas-editor.js?v=1.0.4"></script>
+  <script src="js/generator-engine.js?v=1.0.4"></script>
+  <script src="js/progress-manager.js?v=1.0.4"></script>
+  <script src="js/reports-manager.js?v=1.0.4"></script>
+  <script src="js/config-manager.js?v=1.0.4"></script>
+  <script src="js/app.js?v=1.0.4"></script>
 
 </body>
 </html>

@@ -55,6 +55,44 @@ class CanvasEditor {
     }
   }
 
+  saveActiveFieldProperty(propName, val) {
+    const template = window.appState.getActiveTemplate();
+    if (!template || !window.appState.activeElementId) return;
+
+    const field = template.fields.find(f => f.id === window.appState.activeElementId);
+    if (!field) return;
+
+    if (propName === 'x') field.x = parseInt(val) || 0;
+    else if (propName === 'y') field.y = parseInt(val) || 0;
+    else if (propName === 'width') field.width = Math.max(10, parseInt(val) || 10);
+    else if (propName === 'height') field.height = Math.max(10, parseInt(val) || 10);
+    else if (propName === 'fontFamily') field.fontFamily = val;
+    else if (propName === 'fontSize') {
+      const sz = Math.min(200, Math.max(8, parseInt(val) || 12));
+      field.fontSize = sz;
+      field.maxFontSize = sz;
+    }
+    else if (propName === 'bold') {
+      field.bold = !!val;
+      field.fontWeight = val ? 'bold' : 'normal';
+    }
+    else if (propName === 'italic') {
+      field.italic = !!val;
+      field.fontStyle = val ? 'italic' : 'normal';
+    }
+    else if (propName === 'underline') field.underline = !!val;
+    else if (propName === 'color') field.color = val;
+    else if (propName === 'textAlign') field.textAlign = val;
+    else if (propName === 'verticalAlign') field.verticalAlign = val;
+    else if (propName === 'autoResize') field.autoResize = !!val;
+    else if (propName === 'wordWrap') field.wordWrap = !!val;
+    else if (propName === 'lockPosition') field.lockPosition = !!val;
+    else if (propName === 'linkedColumn') field.linkedColumn = val;
+
+    this.drawCanvas();
+    window.appStorage.saveItem('templates', template);
+  }
+
   getCanvasMouseCoordinates(e) {
     if (!this.canvas) return { x: 0, y: 0 };
     const rect = this.canvas.getBoundingClientRect();
@@ -265,6 +303,7 @@ class CanvasEditor {
 
     const fontFamily = window.fontManager.ensureFontLoaded(field.fontFamily || 'Inter');
     const masterFontSize = Math.min(200, Math.max(8, parseInt(field.fontSize) || 12));
+    const minFontSize = field.minFontSize ? Math.max(8, parseInt(field.minFontSize)) : 8;
     let currentFontSize = masterFontSize;
 
     const fontStyle = (field.italic || field.fontStyle === 'italic') ? 'italic' : 'normal';
@@ -273,13 +312,20 @@ class CanvasEditor {
     ctx.font = `${fontStyle} ${fontWeight} ${currentFontSize}px "${fontFamily}", Inter, sans-serif`;
     ctx.fillStyle = field.color || '#000000';
 
-    const innerW = Math.max(10, field.width);
-    const measuredW = ctx.measureText(textToDraw).width;
+    const padding = parseInt(field.padding) || 0;
+    const availWidth = Math.max(10, field.width - (2 * padding));
 
-    if (field.autoResize !== false && measuredW > innerW) {
-      const scaledSize = Math.floor(currentFontSize * (innerW / measuredW));
-      currentFontSize = Math.max(8, scaledSize);
-      ctx.font = `${fontStyle} ${fontWeight} ${currentFontSize}px "${fontFamily}", Inter, sans-serif`;
+    // AUTO FIT: Reduce font size ONLY when text width exceeds available width and autoResize is ON
+    const isAutoFitOn = field.autoResize !== false && field.autoResize !== 'false' && field.autoFit !== false;
+    if (isAutoFitOn && availWidth > 0) {
+      let measuredW = ctx.measureText(textToDraw).width;
+      if (measuredW > availWidth) {
+        while (measuredW > availWidth && currentFontSize > minFontSize) {
+          currentFontSize--;
+          ctx.font = `${fontStyle} ${fontWeight} ${currentFontSize}px "${fontFamily}", Inter, sans-serif`;
+          measuredW = ctx.measureText(textToDraw).width;
+        }
+      }
     }
 
     const align = field.textAlign || 'center';
@@ -287,15 +333,18 @@ class CanvasEditor {
     if (align === 'center') {
       textX = field.x + (field.width / 2);
     } else if (align === 'right') {
-      textX = field.x + field.width;
+      textX = field.x + field.width - padding;
     } else {
-      textX = field.x;
+      textX = field.x + padding;
     }
 
     const valign = field.verticalAlign || 'middle';
     let textY = field.y + (field.height / 2);
-    if (valign === 'top') textY = field.y + (currentFontSize / 2);
-    else if (valign === 'bottom') textY = field.y + field.height - (currentFontSize / 2);
+    if (valign === 'top') {
+      textY = field.y + (currentFontSize / 2) + padding;
+    } else if (valign === 'bottom') {
+      textY = field.y + field.height - (currentFontSize / 2) - padding;
+    }
 
     ctx.textAlign = align;
     ctx.textBaseline = 'middle';
@@ -303,6 +352,7 @@ class CanvasEditor {
     ctx.fillText(textToDraw, textX, textY);
 
     if (field.underline) {
+      const measuredW = ctx.measureText(textToDraw).width;
       const underlineY = textY + (currentFontSize / 2) + 2;
       let startX = field.x;
       if (align === 'center') startX = textX - (measuredW / 2);
