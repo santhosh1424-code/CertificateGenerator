@@ -111,6 +111,29 @@ class CanvasEditor {
     this.canvas.width = template.width;
     this.canvas.height = template.height;
 
+    // Auto-calculate optimal initial zoom to fit template cleanly inside stage viewport
+    if (this.viewport && template.width > 0) {
+      const availW = Math.max(300, this.viewport.clientWidth - 60);
+      const availH = Math.max(300, this.viewport.clientHeight - 60);
+      const scaleX = availW / template.width;
+      const scaleY = availH / template.height;
+      let fitZoom = Math.min(scaleX, scaleY);
+      fitZoom = Math.max(0.2, Math.min(1.0, Math.round(fitZoom * 100) / 100));
+
+      if (!window.appState.canvasSettings) window.appState.canvasSettings = { zoom: fitZoom, recordIndex: 0 };
+      else window.appState.canvasSettings.zoom = fitZoom;
+
+      if (this.wrapper) {
+        this.wrapper.style.transform = `scale(${fitZoom})`;
+      }
+
+      const zoomSelect = document.getElementById('prop-zoom-select');
+      if (zoomSelect) zoomSelect.value = fitZoom.toString();
+    }
+
+    const rightPanel = document.getElementById('editor-right-panel');
+    if (rightPanel) rightPanel.scrollTop = 0;
+
     this.loadBackgroundImage(template.dataUrl, () => {
       this.drawCanvas();
     });
@@ -249,7 +272,6 @@ class CanvasEditor {
       ctx.stroke();
     }
 
-    // EXPORT MODE STRICT GUARD: Render bounding boxes & selection outlines ONLY in editor mode
     if (!isExport) {
       const isSelected = window.appState.activeElementId === field.id;
       ctx.strokeStyle = isSelected ? '#2563EB' : 'rgba(100, 116, 139, 0.4)';
@@ -267,7 +289,7 @@ class CanvasEditor {
     if (!template) return;
 
     const field = template.fields.find(f => f.id === window.appState.activeElementId);
-    
+
     const propLinked = document.getElementById('prop-linked-column');
     const propVal = document.getElementById('prop-current-val');
     const propX = document.getElementById('prop-x-pos');
@@ -288,7 +310,7 @@ class CanvasEditor {
 
     if (propLinked && activeExcel && activeExcel.headers) {
       const currentSelected = field ? (field.linkedColumn || field.field) : '';
-      propLinked.innerHTML = `<option value="">-- Unlinked --</option>` + 
+      propLinked.innerHTML = `<option value="">-- Unlinked --</option>` +
         activeExcel.headers.map(h => `<option value="${h}" ${h === currentSelected ? 'selected' : ''}>${h}</option>`).join('');
     }
 
@@ -337,7 +359,6 @@ class CanvasEditor {
 
     template.fields.forEach(field => {
       const isSelected = window.appState.activeElementId === field.id;
-      if (!isSelected) return;
 
       const overlay = document.createElement('div');
       overlay.className = `canvas-element-overlay ${isSelected ? 'selected' : ''}`;
@@ -408,7 +429,7 @@ class CanvasEditor {
           e.preventDefault();
           const delta = e.deltaY < 0 ? 0.1 : -0.1;
           const curr = (window.appState.canvasSettings && window.appState.canvasSettings.zoom) || 1.0;
-          this.setZoom(Math.max(0.25, Math.min(2.0, curr + delta)));
+          this.setZoom(Math.max(0.2, Math.min(2.0, curr + delta)));
         }
       }, { passive: false });
     }
@@ -511,26 +532,41 @@ class CanvasEditor {
 
     this.safePushHistory();
 
-    if (type === 'centerH') field.x = Math.round(template.width / 2);
-    else if (type === 'centerV') field.y = Math.round(template.height / 2);
-    else if (type === 'left') field.x = Math.round(field.width / 2 + (field.padding || 10));
-    else if (type === 'right') field.x = Math.round(template.width - (field.width / 2 + (field.padding || 10)));
-    else if (type === 'top') field.y = Math.round(field.height / 2 + (field.padding || 10));
-    else if (type === 'bottom') field.y = Math.round(template.height - (field.height / 2 + (field.padding || 10)));
+    if (type === 'centerH') field.x = Math.round((template.width - field.width) / 2);
+    else if (type === 'centerV') field.y = Math.round((template.height - field.height) / 2);
+    else if (type === 'left') field.x = 20;
+    else if (type === 'right') field.x = Math.round(template.width - field.width - 20);
+    else if (type === 'top') field.y = 20;
+    else if (type === 'bottom') field.y = Math.round(template.height - field.height - 20);
 
     window.appStorage.saveItem('templates', template);
     this.drawCanvas();
   }
 
   setZoom(zoomVal) {
+    const template = window.appState.getActiveTemplate();
     if (zoomVal === 'fitWidth' || zoomVal === 'fitScreen') {
-      const stageW = this.viewport ? this.viewport.clientWidth - 80 : 800;
-      zoomVal = Math.max(0.25, Math.min(2.0, stageW / (this.canvas ? this.canvas.width : 1000)));
+      if (this.viewport && template && template.width > 0) {
+        const availW = Math.max(300, this.viewport.clientWidth - 60);
+        const availH = Math.max(300, this.viewport.clientHeight - 60);
+        const scaleX = availW / template.width;
+        const scaleY = availH / template.height;
+        let fitZoom = Math.min(scaleX, scaleY);
+        zoomVal = Math.max(0.2, Math.min(1.0, Math.round(fitZoom * 100) / 100));
+      } else {
+        zoomVal = 0.5;
+      }
     }
+
     if (!window.appState.canvasSettings) window.appState.canvasSettings = { zoom: 1.0, recordIndex: 0 };
     window.appState.canvasSettings.zoom = parseFloat(zoomVal);
     if (this.wrapper) {
       this.wrapper.style.transform = `scale(${window.appState.canvasSettings.zoom})`;
+    }
+
+    const zoomSelect = document.getElementById('prop-zoom-select');
+    if (zoomSelect && typeof zoomVal === 'number') {
+      zoomSelect.value = zoomVal.toString();
     }
   }
 
@@ -579,8 +615,8 @@ class CanvasEditor {
       field: fieldName,
       linkedColumn: fieldName,
       sampleText: fieldName,
-      x: Math.round(template.width / 2),
-      y: Math.round(template.height / 2),
+      x: Math.round((template.width - (template.width * 0.6)) / 2),
+      y: Math.round((template.height - (template.height * 0.1)) / 2),
       width: Math.round(template.width * 0.6),
       height: Math.round(template.height * 0.1),
       minFontSize: 8,

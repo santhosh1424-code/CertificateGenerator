@@ -618,15 +618,22 @@ button, input, select, textarea {
 }
 
 #editor-top-bar {
-  height: 48px;
+  min-height: 48px;
   background: var(--bg-sidebar);
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 16px;
+  gap: 6px;
+  padding: 6px 12px;
   flex-shrink: 0;
   overflow-x: auto;
+  white-space: nowrap;
+}
+
+#editor-top-bar .btn,
+#editor-top-bar select {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 #canvas-viewport {
@@ -635,7 +642,7 @@ button, input, select, textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px;
+  padding: 30px;
 }
 
 #canvas-wrapper {
@@ -650,7 +657,7 @@ button, input, select, textarea {
 }
 
 #editor-right-panel {
-  width: 280px;
+  width: 300px;
   background: var(--bg-sidebar);
   border-left: 1px solid var(--border-color);
   padding: 16px;

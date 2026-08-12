@@ -93,7 +93,12 @@ class AppController {
     else if (viewName === 'excel') this.renderExcelGrid();
     else if (viewName === 'assignments') this.renderAssignmentsTable();
     else if (viewName === 'mapping') this.renderMappingTable();
-    else if (viewName === 'editor') window.canvasEditor.render();
+    else if (viewName === 'editor') {
+      window.canvasEditor.render();
+      this.renderEditorVariablesList();
+      const rightPanel = document.getElementById('editor-right-panel');
+      if (rightPanel) rightPanel.scrollTop = 0;
+    }
   }
 
   bindUploadInputs() {
@@ -535,6 +540,59 @@ class AppController {
       this.updateDashboardStats();
       window.appState.notify('toast', { type: 'danger', message: 'All Excel files deleted.' });
     }
+  }
+
+  renderEditorVariablesList() {
+    const container = document.getElementById('editor-variables-list');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    const activeExcel = window.appState.getActiveExcel();
+    const template = window.appState.getActiveTemplate();
+
+    let fieldsList = [];
+
+    if (activeExcel && activeExcel.headers && activeExcel.headers.length > 0) {
+      fieldsList = activeExcel.headers;
+    } else if (template && template.fields) {
+      fieldsList = template.fields.map(f => f.field || f.linkedColumn);
+    } else {
+      fieldsList = ['Participant Name', 'College Name', 'Department', 'Date', 'Certificate ID'];
+    }
+
+    fieldsList.forEach(headerName => {
+      const chip = document.createElement('div');
+      chip.className = 'variable-chip';
+
+      const isLinked = template && template.fields && template.fields.some(f => (f.linkedColumn || f.field) === headerName);
+
+      chip.innerHTML = `
+        <span style="display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+          <span style="font-size: 0.72rem; color: var(--btn-primary);">📄</span>
+          <strong style="overflow: hidden; text-overflow: ellipsis;">${headerName}</strong>
+        </span>
+        <span class="badge ${isLinked ? 'badge-primary' : 'badge-secondary'}" style="font-size: 0.68rem; padding: 2px 6px; flex-shrink: 0;">
+          ${isLinked ? '✓ Linked' : '+ Add'}
+        </span>
+      `;
+
+      chip.onclick = () => {
+        if (!template) return;
+        const existingField = template.fields.find(f => (f.linkedColumn || f.field) === headerName);
+        if (existingField) {
+          window.appState.activeElementId = existingField.id;
+          window.canvasEditor.drawCanvas();
+          window.appState.notify('toast', { type: 'info', message: `Selected field "${headerName}".` });
+        } else {
+          window.canvasEditor.addFieldToTemplate('text', headerName);
+          this.renderEditorVariablesList();
+          window.appState.notify('toast', { type: 'success', message: `Added "${headerName}" to template.` });
+        }
+      };
+
+      container.appendChild(chip);
+    });
   }
 
   setupStateSubscriptions() {
