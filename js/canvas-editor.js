@@ -20,6 +20,7 @@ class CanvasEditor {
 
     this.activeRecordOverride = null;
     this.editorLocked = false;
+    this.eventsBound = false;
 
     // Granular Lock Options
     this.lockOptions = {
@@ -52,6 +53,39 @@ class CanvasEditor {
     if (window.appState && typeof window.appState.pushHistory === 'function') {
       window.appState.pushHistory();
     }
+  }
+
+  getCanvasMouseCoordinates(e) {
+    if (!this.canvas) return { x: 0, y: 0 };
+    const rect = this.canvas.getBoundingClientRect();
+    if (!rect || rect.width === 0 || rect.height === 0) return { x: 0, y: 0 };
+
+    const scaleX = this.canvas.width / rect.width;
+    const scaleY = this.canvas.height / rect.height;
+
+    const mouseX = (e.clientX - rect.left) * scaleX;
+    const mouseY = (e.clientY - rect.top) * scaleY;
+
+    return {
+      x: Math.round(mouseX),
+      y: Math.round(mouseY)
+    };
+  }
+
+  hitTestFields(canvasX, canvasY) {
+    const template = window.appState.getActiveTemplate();
+    if (!template || !template.fields) return null;
+
+    const sortedFields = [...template.fields].sort((a, b) => (b.layerOrder || 1) - (a.layerOrder || 1));
+    return sortedFields.find(field => {
+      if (field.visibility === false) return false;
+      return (
+        canvasX >= field.x &&
+        canvasX <= field.x + field.width &&
+        canvasY >= field.y &&
+        canvasY <= field.y + field.height
+      );
+    }) || null;
   }
 
   setTemplateLocked(isLocked) {
@@ -102,6 +136,17 @@ class CanvasEditor {
   }
 
   render() {
+    this.canvas = document.getElementById('cert-canvas');
+    this.wrapper = document.getElementById('canvas-wrapper');
+    this.stage = document.getElementById('editor-canvas-stage');
+    this.viewport = document.getElementById('canvas-viewport');
+
+    if (this.canvas) {
+      this.ctx = this.canvas.getContext('2d');
+    }
+
+    this.bindEvents();
+
     const template = window.appState.getActiveTemplate();
     if (!template) {
       this.clearCanvas();
@@ -111,7 +156,6 @@ class CanvasEditor {
     this.canvas.width = template.width;
     this.canvas.height = template.height;
 
-    // Auto-calculate optimal initial zoom to fit template cleanly inside stage viewport
     if (this.viewport && template.width > 0) {
       const availW = Math.max(300, this.viewport.clientWidth - 60);
       const availH = Math.max(300, this.viewport.clientHeight - 60);
@@ -389,15 +433,15 @@ class CanvasEditor {
     this.drawCanvas();
 
     const template = window.appState.getActiveTemplate();
-    if (field.lockPosition || field.isLocked || (template && template.isLocked)) return;
+    if (field.lockPosition || field.isLocked || (template && template.isLocked) || this.editorLocked) return;
 
     this.isDragging = true;
     this.dragTarget = field;
 
-    const scale = (this.canvas.clientWidth / this.canvas.width) * ((window.appState.canvasSettings && window.appState.canvasSettings.zoom) || 1);
+    const mousePos = this.getCanvasMouseCoordinates(e);
     this.dragOffset = {
-      x: e.clientX - (field.x * scale),
-      y: e.clientY - (field.y * scale)
+      x: mousePos.x - field.x,
+      y: mousePos.y - field.y
     };
 
     this.safePushHistory();
@@ -406,7 +450,7 @@ class CanvasEditor {
   onResizeMouseDown(e, field, handleType) {
     e.stopPropagation();
     const template = window.appState.getActiveTemplate();
-    if (field.lockPosition || field.isLocked || (template && template.isLocked)) return;
+    if (field.lockPosition || field.isLocked || (template && template.isLocked) || this.editorLocked) return;
     this.isResizing = true;
     this.resizeHandle = handleType;
     this.dragTarget = field;
@@ -414,7 +458,23 @@ class CanvasEditor {
   }
 
   bindEvents() {
-    if (!this.stage) return;
+    if (this.eventsBound) return;
+    this.eventsBound = true;
+
+    if (this.canvas) {
+      this.canvas.addEventListener('mousedown', (e) => {
+        const mousePos = this.getCanvasMouseCoordinates(e);
+        const hitField = this.hitTestFields(mousePos.x, mousePos.y);
+
+        if (hitField) {
+          window.appState.activeElementId = hitField.id;
+          this.onElementMouseDown(e, hitField);
+        } else {
+          window.appState.activeElementId = null;
+        }
+        this.drawCanvas();
+      });
+    }
 
     if (this.viewport) {
       this.viewport.addEventListener('mousedown', (e) => {
@@ -440,11 +500,11 @@ class CanvasEditor {
       const template = window.appState.getActiveTemplate();
       if (!template) return;
 
-      const scale = (this.canvas.clientWidth / this.canvas.width) * ((window.appState.canvasSettings && window.appState.canvasSettings.zoom) || 1);
+      const mousePos = this.getCanvasMouseCoordinates(e);
 
       if (this.isDragging) {
-        let newX = Math.round((e.clientX - this.dragOffset.x) / scale);
-        let newY = Math.round((e.clientY - this.dragOffset.y) / scale);
+        let newX = mousePos.x - this.dragOffset.x;
+        let newY = mousePos.y - this.dragOffset.y;
 
         newX = Math.max(0, Math.min(template.width - this.dragTarget.width, newX));
         newY = Math.max(0, Math.min(template.height - this.dragTarget.height, newY));
@@ -453,14 +513,25 @@ class CanvasEditor {
         this.dragTarget.y = newY;
         this.drawCanvas();
       } else if (this.isResizing) {
-        const mouseX = Math.round(e.clientX / scale);
-        const mouseY = Math.round(e.clientY / scale);
-
         if (this.resizeHandle.includes('e')) {
-          this.dragTarget.width = Math.max(20, mouseX - this.dragTarget.x);
+          this.dragTarget.width = Math.max(20, mousePos.x - this.dragTarget.x);
         }
         if (this.resizeHandle.includes('s')) {
-          this.dragTarget.height = Math.max(10, mouseY - this.dragTarget.y);
+          this.dragTarget.height = Math.max(10, mousePos.y - this.dragTarget.y);
+        }
+        if (this.resizeHandle.includes('w')) {
+          const diffX = mousePos.x - this.dragTarget.x;
+          if (this.dragTarget.width - diffX >= 20) {
+            this.dragTarget.x = mousePos.x;
+            this.dragTarget.width -= diffX;
+          }
+        }
+        if (this.resizeHandle.includes('n')) {
+          const diffY = mousePos.y - this.dragTarget.y;
+          if (this.dragTarget.height - diffY >= 10) {
+            this.dragTarget.y = mousePos.y;
+            this.dragTarget.height -= diffY;
+          }
         }
         this.drawCanvas();
       }
