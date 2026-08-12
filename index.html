@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Certificate Generator | Enterprise Certificate Management Platform</title>
+  
+  <!-- Modern Google Fonts Library including Plus Jakarta Sans for Enterprise Branding -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Alex+Brush&family=Cinzel:wght@400;600;700;800&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Great+Vibes&family=Inter:wght@300;400;500;600;700;800&family=Lato:wght@300;400;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@400;600;700;800&family=Nunito+Sans:wght@400;600;700&family=Open+Sans:ital,wght@0,400;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@600;700;800&family=Poppins:wght@400;500;600;700&family=Roboto:wght@400;500;700&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="css/style.css">
+  
+  <!-- Offline Vendor Libraries -->
+  <script src="js/vendor/xlsx.full.min.js"></script>
+  <script src="js/vendor/jszip.min.js"></script>
+  <script src="js/vendor/FileSaver.min.js"></script>
+</head>
+<body>
+
+  <div id="app-container">
+
+    <!-- ==================== SIDEBAR NAVIGATION ==================== -->
+    <aside id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand-logo">
+          <div class="brand-icon">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 14l9-5-9-5-9 5 9 5z"></path><path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"></path></svg>
+          </div>
+          <span class="nav-text">Certificate Generator</span>
+        </div>
+        <button class="sidebar-toggle-btn" id="sidebar-toggle" title="Toggle Sidebar">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>
+        </button>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a class="nav-item active" data-view="dashboard">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+          <span class="nav-text">Dashboard</span>
+        </a>
+        <a class="nav-item" data-view="templates">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+          <span class="nav-text">Templates</span>
+        </a>
+        <a class="nav-item" data-view="excel">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+          <span class="nav-text">Excel Files</span>
+        </a>
+        <a class="nav-item" data-view="assignments">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+          <span class="nav-text">Assignment</span>
+        </a>
+        <a class="nav-item" data-view="mapping">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+          <span class="nav-text">Field Mapping</span>
+        </a>
+        <a class="nav-item" data-view="editor">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+          <span class="nav-text">Visual Editor</span>
+        </a>
+        <a class="nav-item" data-view="queue">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+          <span class="nav-text">Generate</span>
+        </a>
+        <a class="nav-item" data-view="settings">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          <span class="nav-text">Settings</span>
+        </a>
+      </nav>
+    </aside>
+
+    <!-- ==================== MAIN WORKSPACE ==================== -->
+    <main id="main-wrapper">
+
+      <header id="top-header">
+        <h2 class="page-title" id="page-title-text">Dashboard</h2>
+
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <button class="theme-toggle-btn" id="theme-toggle-btn">
+            <span id="theme-btn-label">Dark Mode</span>
+          </button>
+          <button class="btn btn-primary btn-sm" onclick="window.generatorEngine.startBulkGeneration()">
+            🚀 Generate All
+          </button>
+        </div>
+      </header>
+
+      <!-- VIEW 1: DASHBOARD HUB -->
+      <section id="view-dashboard" class="view-content active">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-title">Templates Loaded</div>
+            <div class="stat-value" id="dash-stat-templates">0</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-title">Excel Files</div>
+            <div class="stat-value" id="dash-stat-excels">0</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-title">Assigned Pairs</div>
+            <div class="stat-value" id="dash-stat-assignments">0</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-title">Certificates Ready</div>
+            <div class="stat-value" id="dash-stat-ready">0</div>
+          </div>
+        </div>
+
+        <!-- Quick Access Menu Cards Grid -->
+        <div style="margin-top: 24px;">
+          <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin-bottom: 16px;">Quick Access Navigation</div>
+          <div class="menu-cards-grid">
+            
+            <div class="dash-menu-card" onclick="window.appController.switchView('dashboard')">
+              <div class="dash-menu-icon" style="color: #60A5FA;">
+                <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+              </div>
+              <div class="dash-menu-title">Dashboard</div>
+              <div class="dash-menu-desc">Overview of system stats and readiness.</div>
+            </div>
+
+            <div class="dash-menu-card" onclick="window.appController.switchView('templates')">
+              <div class="dash-menu-icon" style="color: #34D399;">
+                <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+              </div>
+              <div class="dash-menu-title">Templates</div>
+              <div class="dash-menu-desc">Upload and manage certificate templates.</div>
+            </div>
+
+            <div class="dash-menu-card" onclick="window.appController.switchView('excel')">
+              <div class="dash-menu-icon" style="color: #FBBF24;">
+                <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+              </div>
+              <div class="dash-menu-title">Excel Files</div>
+              <div class="dash-menu-desc">Import participant data workbooks.</div>
+            </div>
+
+            <div class="dash-menu-card" onclick="window.appController.switchView('assignments')">
+              <div class="dash-menu-icon" style="color: #F472B6;">
+                <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+              </div>
+              <div class="dash-menu-title">Assignment</div>
+              <div class="dash-menu-desc">Link templates with Excel sheets.</div>
+            </div>
+
+            <div class="dash-menu-card" onclick="window.appController.switchView('mapping')">
+              <div class="dash-menu-icon" style="color: #A78BFA;">
+                <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+              </div>
+              <div class="dash-menu-title">Field Mapping</div>
+              <div class="dash-menu-desc">Map template fields to Excel columns.</div>
+            </div>
+
+            <div class="dash-menu-card" onclick="window.appController.switchView('editor')">
+              <div class="dash-menu-icon" style="color: #60A5FA;">
+                <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+              </div>
+              <div class="dash-menu-title">Visual Editor</div>
+              <div class="dash-menu-desc">Edit certificate layout and text fields.</div>
+            </div>
+
+            <div class="dash-menu-card" onclick="window.appController.switchView('queue')">
+              <div class="dash-menu-icon" style="color: #34D399;">
+                <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+              </div>
+              <div class="dash-menu-title">Generate</div>
+              <div class="dash-menu-desc">Generate certificates in bulk ZIP.</div>
+            </div>
+
+            <div class="dash-menu-card" onclick="window.appController.switchView('settings')">
+              <div class="dash-menu-icon" style="color: #9CA3AF;">
+                <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </div>
+              <div class="dash-menu-title">Settings</div>
+              <div class="dash-menu-desc">Configure application preferences.</div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 2: TEMPLATES -->
+      <section id="view-templates" class="view-content">
+        <div class="glass-panel" style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div class="panel-title" style="margin-bottom: 0;">Template Library</div>
+            <p style="font-size: 0.8rem; color: var(--text-muted);">Upload, rename, duplicate, or delete certificate templates.</p>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <input type="file" id="template-file-input" multiple accept="image/png, image/jpeg, image/webp" style="display: none;">
+            <button class="btn btn-primary btn-sm" onclick="document.getElementById('template-file-input').click()">
+              + Add Templates
+            </button>
+            <button class="btn btn-danger btn-sm" onclick="window.appController.confirmClearAllTemplates()">
+              Delete All Templates
+            </button>
+          </div>
+        </div>
+        <div class="card-grid" id="templates-grid"></div>
+      </section>
+
+      <!-- VIEW 3: EXCEL FILES -->
+      <section id="view-excel" class="view-content">
+        <div class="glass-panel" style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div class="panel-title" style="margin-bottom: 0;">Excel Data Files</div>
+            <p style="font-size: 0.8rem; color: var(--text-muted);">Manage uploaded spreadsheet workbooks and dataset details.</p>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <input type="file" id="excel-file-input" multiple accept=".xlsx, .xls, .csv" style="display: none;">
+            <button class="btn btn-primary btn-sm" onclick="document.getElementById('excel-file-input').click()">
+              + Add Excel Files
+            </button>
+            <button class="btn btn-danger btn-sm" onclick="window.appController.confirmClearAllExcelFiles()">
+              Delete All Excel Files
+            </button>
+          </div>
+        </div>
+        <div class="card-grid" id="excel-grid"></div>
+        <div class="glass-panel" style="margin-top: 20px;">
+          <div class="panel-title">Spreadsheet Data Preview</div>
+          <div class="excel-table-wrapper" id="excel-table-container">
+            <p style="padding: 16px; color: var(--text-muted);">No Excel file selected.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 4: ASSIGNMENT MANAGER -->
+      <section id="view-assignments" class="view-content">
+        <div class="glass-panel">
+          <div class="panel-title">Template ↔ Excel Assignment Manager</div>
+          <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 16px;">
+            Pair each uploaded certificate template with an Excel workbook.
+          </p>
+          <div class="excel-table-wrapper" id="assignments-table-container"></div>
+        </div>
+      </section>
+
+      <!-- VIEW 5: FIELD MAPPING PANEL -->
+      <section id="view-mapping" class="view-content">
+        <div class="glass-panel">
+          <div class="panel-title">Dynamic Excel Field Mapping Panel</div>
+          <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 20px;">
+            Map certificate template variables to the exact column headers extracted from your uploaded Excel sheet.
+          </p>
+          <div class="excel-table-wrapper" id="mapping-container"></div>
+        </div>
+      </section>
+
+      <!-- VIEW 6: VISUAL EDITOR -->
+      <section id="view-editor" class="view-content" style="padding: 0;">
+        <div id="editor-workspace">
+          
+          <!-- Left Panel: Variables List -->
+          <div id="editor-left-panel">
+            <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted);">Available Excel Fields</div>
+            <div class="variables-list" id="editor-variables-list"></div>
+          </div>
+
+          <!-- Center Canvas Stage -->
+          <div id="editor-canvas-stage">
+            
+            <!-- Dedicated Fixed Canvas Top Bar -->
+            <div id="editor-top-bar">
+              <button class="btn btn-secondary btn-sm" onclick="window.canvasEditor.navigateRecord('prev')" title="Previous Record">&lt;</button>
+              <span id="record-count-indicator" style="font-size: 0.78rem; font-weight: 600; padding: 0 4px;">Record 1 of 1</span>
+              <button class="btn btn-secondary btn-sm" onclick="window.canvasEditor.navigateRecord('next')" title="Next Record">&gt;</button>
+              <button class="btn btn-secondary btn-sm" onclick="window.canvasEditor.navigateRecord('random')" title="Random Record">🎲</button>
+
+              <span style="color: var(--border-color);">|</span>
+              <button class="btn btn-secondary btn-sm" onclick="window.canvasEditor.alignActiveElement('centerH')" title="Center Horizontally">↔ Center H</button>
+              <button class="btn btn-secondary btn-sm" onclick="window.canvasEditor.alignActiveElement('centerV')" title="Center Vertically">↕ Center V</button>
+              
+              <span style="color: var(--border-color);">|</span>
+              <select class="select-input" style="width: auto; padding: 2px 6px; font-size: 0.78rem;" onchange="window.canvasEditor.setZoom(this.value)">
+                <option value="0.25">25%</option>
+                <option value="0.5">50%</option>
+                <option value="0.75">75%</option>
+                <option value="1.0" selected>100%</option>
+                <option value="1.25">125%</option>
+                <option value="1.5">150%</option>
+                <option value="2.0">200%</option>
+                <option value="fitWidth">Fit Width</option>
+                <option value="fitScreen">Fit Screen</option>
+              </select>
+
+              <span style="color: var(--border-color);">|</span>
+              <button class="btn btn-secondary btn-sm" onclick="window.canvasEditor.setTestRecordMode('longestName')">Longest Name</button>
+              <button class="btn btn-secondary btn-sm" onclick="window.canvasEditor.setTestRecordMode('longestCollege')">Longest College</button>
+              <button class="btn btn-secondary btn-sm" onclick="window.canvasEditor.setTestRecordMode('reset')">Reset</button>
+
+              <span style="color: var(--border-color);">|</span>
+              <button class="btn btn-danger btn-sm" onclick="window.canvasEditor.deleteActiveElement()">Delete</button>
+            </div>
+
+            <div id="editor-assignment-banner" style="width: 100%; padding: 6px 16px;"></div>
+
+            <!-- Canvas Viewport Scroll Area -->
+            <div id="canvas-viewport">
+              <div id="canvas-wrapper">
+                <canvas id="cert-canvas"></canvas>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Right Panel: Essential Properties -->
+          <div id="editor-right-panel">
+            <div style="font-size: 0.85rem; font-weight: 700; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Object Properties</div>
+            
+            <!-- Dynamic Linked Excel Column Selector -->
+            <div class="prop-group" style="background: rgba(59, 130, 246, 0.08); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--btn-primary);">
+              <label class="prop-label" style="color: var(--btn-primary);">Linked Excel Column</label>
+              <select class="select-input" id="prop-linked-column" onchange="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).linkedColumn = this.value, window.canvasEditor.drawCanvas())"></select>
+            </div>
+
+            <div style="background: var(--bg-card); padding: 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+              <span class="prop-label">Live Record Value</span>
+              <div id="prop-current-val" style="font-size: 0.82rem; font-weight: 700; color: #06B6D4; word-break: break-word; margin-top: 2px;">—</div>
+            </div>
+
+            <div class="prop-group">
+              <label class="prop-label">X Position (px)</label>
+              <input type="number" class="input-field" id="prop-x-pos" oninput="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).x = parseInt(this.value) || 0, window.canvasEditor.drawCanvas())">
+            </div>
+
+            <div class="prop-group">
+              <label class="prop-label">Y Position (px)</label>
+              <input type="number" class="input-field" id="prop-y-pos" oninput="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).y = parseInt(this.value) || 0, window.canvasEditor.drawCanvas())">
+            </div>
+
+            <div class="prop-group">
+              <label class="prop-label">Box Width (px)</label>
+              <input type="number" class="input-field" id="prop-box-width" oninput="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).width = parseInt(this.value) || 50, window.canvasEditor.drawCanvas())">
+            </div>
+
+            <div class="prop-group">
+              <label class="prop-label">Box Height (px)</label>
+              <input type="number" class="input-field" id="prop-box-height" oninput="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).height = parseInt(this.value) || 20, window.canvasEditor.drawCanvas())">
+            </div>
+
+            <!-- Categorized Font Family Selector with Individual Typeface Preview Styling -->
+            <div class="prop-group">
+              <label class="prop-label">Font Family</label>
+              <select class="select-input" id="prop-font-family" onchange="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).fontFamily = this.value, window.canvasEditor.drawCanvas())">
+                <optgroup label="Modern Sans Serif">
+                  <option value="Inter" style="font-family: 'Inter', sans-serif;">Inter</option>
+                  <option value="Poppins" style="font-family: 'Poppins', sans-serif;">Poppins</option>
+                  <option value="Montserrat" style="font-family: 'Montserrat', sans-serif;">Montserrat</option>
+                  <option value="Roboto" style="font-family: 'Roboto', sans-serif;">Roboto</option>
+                  <option value="Open Sans" style="font-family: 'Open Sans', sans-serif;">Open Sans</option>
+                  <option value="Lato" style="font-family: 'Lato', sans-serif;">Lato</option>
+                  <option value="Source Sans 3" style="font-family: 'Source Sans 3', sans-serif;">Source Sans Pro</option>
+                  <option value="Nunito Sans" style="font-family: 'Nunito Sans', sans-serif;">Nunito Sans</option>
+                </optgroup>
+                <optgroup label="Elegant Serif">
+                  <option value="Cinzel" style="font-family: 'Cinzel', serif;">Cinzel</option>
+                  <option value="Merriweather" style="font-family: 'Merriweather', serif;">Merriweather</option>
+                  <option value="Libre Baskerville" style="font-family: 'Libre Baskerville', serif;">Libre Baskerville</option>
+                  <option value="Cormorant Garamond" style="font-family: 'Cormorant Garamond', serif;">Cormorant Garamond</option>
+                </optgroup>
+                <optgroup label="Display / Premium">
+                  <option value="Playfair Display" style="font-family: 'Playfair Display', serif;">Playfair Display</option>
+                </optgroup>
+                <optgroup label="Signature / Script">
+                  <option value="Great Vibes" style="font-family: 'Great Vibes', cursive;">Great Vibes</option>
+                  <option value="Alex Brush" style="font-family: 'Alex Brush', cursive;">Alex Brush</option>
+                </optgroup>
+              </select>
+            </div>
+
+            <div class="prop-group">
+              <label class="prop-label">Font Size (px, 8-200)</label>
+              <input type="number" class="input-field" id="prop-font-size" min="8" max="200" oninput="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).fontSize = Math.min(200, Math.max(8, parseInt(this.value) || 12)), window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).maxFontSize = Math.min(200, Math.max(8, parseInt(this.value) || 12)), window.canvasEditor.drawCanvas())">
+            </div>
+
+            <div style="display: flex; gap: 12px; font-size: 0.8rem; margin: 4px 0;">
+              <label><input type="checkbox" id="prop-bold" onchange="window.appState.getActiveTemplate() && (f=window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId), f.bold=this.checked, f.fontWeight=this.checked?'bold':'normal', window.canvasEditor.drawCanvas())"> <strong>B</strong></label>
+              <label><input type="checkbox" id="prop-italic" onchange="window.appState.getActiveTemplate() && (f=window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId), f.italic=this.checked, f.fontStyle=this.checked?'italic':'normal', window.canvasEditor.drawCanvas())"> <em>I</em></label>
+              <label><input type="checkbox" id="prop-underline" onchange="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).underline = this.checked, window.canvasEditor.drawCanvas())"> <u>U</u></label>
+            </div>
+
+            <div class="prop-group">
+              <label class="prop-label">Text Color</label>
+              <input type="color" class="input-field" id="prop-color" oninput="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).color = this.value, window.canvasEditor.drawCanvas())">
+            </div>
+
+            <div class="prop-group">
+              <label class="prop-label">Horizontal Alignment</label>
+              <select class="select-input" id="prop-align" onchange="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).textAlign = this.value, window.canvasEditor.drawCanvas())">
+                <option value="center">Center</option>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+              </select>
+            </div>
+
+            <div class="prop-group">
+              <label class="prop-label">Vertical Alignment</label>
+              <select class="select-input" id="prop-valign" onchange="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).verticalAlign = this.value, window.canvasEditor.drawCanvas())">
+                <option value="middle">Middle</option>
+                <option value="top">Top</option>
+                <option value="bottom">Bottom</option>
+              </select>
+            </div>
+
+            <div class="toggle-row" style="margin-top: 6px;">
+              <span style="font-size: 0.8rem; font-weight: 600;">Auto Fit Font</span>
+              <input type="checkbox" id="prop-autofit" onchange="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).autoResize = this.checked, window.canvasEditor.drawCanvas())">
+            </div>
+
+            <div class="toggle-row">
+              <span style="font-size: 0.8rem; font-weight: 600;">Word Wrap</span>
+              <input type="checkbox" id="prop-wordwrap" onchange="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).wordWrap = this.checked, window.canvasEditor.drawCanvas())">
+            </div>
+
+            <div class="toggle-row">
+              <span style="font-size: 0.8rem; font-weight: 600;">Lock Position</span>
+              <input type="checkbox" id="prop-lock" onchange="window.appState.getActiveTemplate() && (window.appState.getActiveTemplate().fields.find(f=>f.id===window.appState.activeElementId).lockPosition = this.checked, window.canvasEditor.drawCanvas())">
+            </div>
+
+            <!-- Professional Template Lock System Card -->
+            <div style="background: var(--bg-card); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); margin-top: 14px;">
+              <div style="font-size: 0.85rem; font-weight: 700; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <span>🔒 Template Lock System</span>
+                <span class="badge badge-secondary" id="lock-status-badge">Unlocked</span>
+              </div>
+              
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px;">
+                <label><input type="checkbox" id="lock-font-family" onchange="window.canvasEditor.toggleFieldLockOption('lockFontFamily', this.checked)"> Lock Font Family</label>
+                <label><input type="checkbox" id="lock-font-size" onchange="window.canvasEditor.toggleFieldLockOption('lockFontSize', this.checked)"> Lock Font Size</label>
+                <label><input type="checkbox" id="lock-font-weight" onchange="window.canvasEditor.toggleFieldLockOption('lockFontWeight', this.checked)"> Lock Weight</label>
+                <label><input type="checkbox" id="lock-font-style" onchange="window.canvasEditor.toggleFieldLockOption('lockFontStyle', this.checked)"> Lock Style</label>
+                <label><input type="checkbox" id="lock-text-color" onchange="window.canvasEditor.toggleFieldLockOption('lockTextColor', this.checked)"> Lock Color</label>
+                <label><input type="checkbox" id="lock-text-align" onchange="window.canvasEditor.toggleFieldLockOption('lockTextAlign', this.checked)"> Lock Alignment</label>
+                <label><input type="checkbox" id="lock-position" onchange="window.canvasEditor.toggleFieldLockOption('lockPosition', this.checked)"> Lock Position</label>
+                <label><input type="checkbox" id="lock-entire-template" onchange="window.canvasEditor.toggleTemplateLockAll(this.checked)"> Lock Entire Template</label>
+              </div>
+
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn-primary btn-sm" style="flex: 1;" onclick="window.canvasEditor.setTemplateLocked(true)">🔒 Lock Template</button>
+                <button class="btn btn-secondary btn-sm" style="flex: 1;" onclick="window.canvasEditor.setTemplateLocked(false)">🔓 Unlock</button>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </section>
+
+      <!-- VIEW 7: GENERATE QUEUE -->
+      <section id="view-queue" class="view-content">
+        <div class="glass-panel" style="text-align: center; padding: 48px;">
+          <h2 style="font-size: 1.6rem; font-weight: 800; margin-bottom: 10px;">Bulk Certificate Generation Hub</h2>
+          <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 20px;">
+            Renders high-resolution certificates asynchronously and packages them into a single ZIP file.
+          </p>
+          <div style="display: flex; justify-content: center; gap: 12px;">
+            <button class="btn btn-primary" style="padding: 12px 28px; font-size: 0.95rem;" onclick="window.generatorEngine.startBulkGeneration()">
+              🚀 Start Bulk Generation Now
+            </button>
+            <button class="btn btn-secondary" style="padding: 12px 20px; font-size: 0.95rem;" onclick="window.generatorEngine.testZipDiagnostic()">
+              ⚡ Run JSZip Diagnostic Test
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 8: SETTINGS -->
+      <section id="view-settings" class="view-content">
+        <div class="glass-panel" style="max-width: 520px;">
+          <div class="panel-title">Application Settings</div>
+          
+          <div class="prop-group" style="margin-bottom: 14px;">
+            <label class="prop-label">Default Output Format</label>
+            <select class="select-input" id="setting-output-format" onchange="window.appState.settings.outputFormat = this.value">
+              <option value="png">PNG (Lossless)</option>
+              <option value="jpeg">JPEG (Compressed)</option>
+            </select>
+          </div>
+
+          <div class="prop-group" style="margin-bottom: 14px;">
+            <label class="prop-label">Certificate File Name Format</label>
+            <select class="select-input" id="setting-filename-template" onchange="window.appState.settings.filenameTemplate = this.value">
+              <option value="{Name}">{Name} (e.g. Santhosh.png)</option>
+              <option value="{Name}_{College}">{Name}_{College} (e.g. Santhosh_Karpagam.png)</option>
+              <option value="{Name}_{TeamID}">{Name}_{TeamID} (e.g. Santhosh_Team10.png)</option>
+              <option value="{RegisterNumber}">{RegisterNumber} (e.g. 21CS001.png)</option>
+              <option value="{Name}_{Event}">{Name}_{Event} (e.g. Santhosh_Hackathon.png)</option>
+            </select>
+          </div>
+
+          <div class="prop-group" style="margin-bottom: 14px;">
+            <label class="prop-label">Default ZIP Name</label>
+            <input type="text" class="input-field" value="Certificates.zip" onchange="window.appState.settings.defaultZipName = this.value">
+          </div>
+
+          <div style="display: flex; gap: 12px; margin-top: 16px;">
+            <button class="btn btn-secondary" onclick="window.configManager.exportConfiguration()">
+              Export Configuration (JSON)
+            </button>
+            <button class="btn btn-secondary" onclick="window.generatorEngine.testZipDiagnostic()">
+              ⚡ Run JSZip Diagnostic Test
+            </button>
+          </div>
+        </div>
+
+        <!-- System Health & Engine Diagnostics Panel -->
+        <div class="glass-panel" style="max-width: 520px; margin-top: 20px;">
+          <div class="panel-title">System Health & Engine Diagnostics</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.8rem; background: var(--bg-input); padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+            <div><span style="color: var(--text-muted);">Canvas Engine:</span> <strong style="color: var(--accent-success);">🟢 Ready (2D Context)</strong></div>
+            <div><span style="color: var(--text-muted);">ZIP Engine:</span> <strong style="color: var(--accent-success);">🟢 Ready (DEFLATE L6)</strong></div>
+            <div><span style="color: var(--text-muted);">Excel Parser:</span> <strong style="color: var(--accent-success);">🟢 Ready (SheetJS 2D)</strong></div>
+            <div><span style="color: var(--text-muted);">Storage:</span> <strong style="color: var(--accent-success);">🟢 Ready (IndexedDB)</strong></div>
+            <div><span style="color: var(--text-muted);">Fonts:</span> <strong style="color: var(--accent-success);">🟢 Ready (Google Fonts)</strong></div>
+            <div><span style="color: var(--text-muted);">Browser Support:</span> <strong style="color: var(--accent-success);">🟢 Ready (HTML5 API)</strong></div>
+            <div><span style="color: var(--text-muted);">Memory Engine:</span> <strong style="color: var(--accent-success);">🟢 Ready (Shared Canvas)</strong></div>
+            <div><span style="color: var(--text-muted);">Pre-Flight Audit:</span> <strong style="color: var(--accent-success);">🟢 Ready (Strict)</strong></div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Pre-Generation Readiness Modal (2-Column Enterprise Layout) -->
+  <div class="modal-overlay" id="preflight-modal">
+    <div class="modal-card" style="max-width: 780px; width: 100%; padding: 24px;">
+      
+      <!-- Modal Header -->
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 18px;">
+        <div>
+          <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+            <span>🛡</span> Generation Readiness Check
+          </h3>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Please verify the project configuration before generating certificates.</p>
+        </div>
+        <span class="badge badge-primary" id="preflight-status-badge" style="font-size: 0.82rem; padding: 4px 12px;">100% Ready</span>
+      </div>
+
+      <!-- 2-Column Body Layout -->
+      <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; margin-bottom: 20px;">
+        
+        <!-- LEFT COLUMN: Readiness Score & 11 Validation Checks -->
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          
+          <!-- Readiness Score Card with Circular Progress -->
+          <div style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px; display: flex; align-items: center; gap: 16px;">
+            <!-- Circular Progress SVG -->
+            <div style="position: relative; width: 64px; height: 64px; flex-shrink: 0;">
+              <svg width="64" height="64" viewBox="0 0 36 36" style="transform: rotate(-90deg);">
+                <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="var(--border-color)" stroke-width="3.5" />
+                <path id="readiness-circle-path" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="var(--btn-primary)" stroke-width="3.5" stroke-dasharray="100, 100" stroke-linecap="round" />
+              </svg>
+              <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 800; color: var(--text-primary);" id="readiness-score-text">100%</div>
+            </div>
+            <div>
+              <div style="font-size: 0.9rem; font-weight: 700; color: var(--text-primary);" id="readiness-score-title">Generation Readiness Score</div>
+              <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;" id="readiness-score-subtitle">All 11 system validations passed cleanly.</div>
+            </div>
+          </div>
+
+          <!-- 11 Validation Checks List -->
+          <div style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px;">
+            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px;">11 System Validation Checks</div>
+            <div id="preflight-checklist" style="display: flex; flex-direction: column; gap: 6px; font-size: 0.78rem;"></div>
+          </div>
+
+          <!-- Action Guidance Container for Failed Checks -->
+          <div id="preflight-actions-container" style="display: none; background: rgba(239, 68, 68, 0.1); border: 1px solid var(--accent-danger); padding: 12px; border-radius: var(--radius-md); font-size: 0.78rem;">
+            <div style="font-weight: 700; color: var(--accent-danger); margin-bottom: 6px;">❌ Configuration Action Required</div>
+            <div id="preflight-actions-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+          </div>
+
+        </div>
+
+        <!-- RIGHT COLUMN: Project Summary Card & System Status Card -->
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          
+          <!-- Project Summary Card -->
+          <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px;">
+            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px;">Project Summary</div>
+            <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.78rem;">
+              <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);">Template:</span><strong id="pf-tpl-name" style="color: var(--text-primary); text-align: right; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">—</strong></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);">Excel File:</span><strong id="pf-xls-name" style="color: var(--text-primary); text-align: right; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">—</strong></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);">Certificates:</span><strong id="pf-certs-count" style="color: var(--accent-success);">0</strong></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);">Rows:</span><strong id="pf-rows-count" style="color: var(--text-primary);">0</strong></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);">Output Format:</span><strong id="pf-format" style="color: var(--text-primary);">PNG</strong></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);">Est. ZIP Size:</span><strong id="pf-est-size" style="color: var(--text-primary);">~0 MB</strong></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);">Est. Time:</span><strong id="pf-est-time" style="color: var(--text-primary);">~0s</strong></div>
+            </div>
+          </div>
+
+          <!-- System Status Card -->
+          <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px;">
+            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px;">System Status</div>
+            <div style="display: grid; grid-template-columns: 1fr; gap: 6px; font-size: 0.76rem;">
+              <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);">Canvas Engine:</span><strong style="color: var(--accent-success);">🟢 Ready (2D)</strong></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);">Excel Engine:</span><strong style="color: var(--accent-success);">🟢 Ready (SheetJS)</strong></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);">ZIP Engine:</span><strong style="color: var(--accent-success);">🟢 Ready (DEFLATE L6)</strong></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);">Storage Engine:</span><strong style="color: var(--accent-success);">🟢 Ready (IndexedDB)</strong></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);">Font Engine:</span><strong style="color: var(--accent-success);">🟢 Ready (Google Fonts)</strong></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);">Browser Compatibility:</span><strong style="color: var(--accent-success);">🟢 Ready (HTML5)</strong></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);">Memory Status:</span><strong style="color: var(--accent-success);">🟢 Normal (Shared Canvas)</strong></div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Bottom Action Buttons -->
+      <div style="display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--border-color); padding-top: 14px;">
+        <button class="btn btn-secondary" style="padding: 8px 20px;" onclick="document.getElementById('preflight-modal').classList.remove('active')">Cancel</button>
+        <button class="btn btn-primary" id="btn-start-generation-exec" style="padding: 8px 24px;" onclick="window.generatorEngine.executeGenerationFromPreflight()">🚀 Start Bulk Generation</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- High Performance Progress Modal -->
+  <div class="modal-overlay" id="progress-modal">
+    <div class="modal-card" style="max-width: 460px; width: 100%;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <h3 style="font-size: 1.1rem; font-weight: 700;">Bulk Certificate Generator</h3>
+        <span class="badge badge-primary" id="progress-record-count">0 / 0</span>
+      </div>
+      
+      <div class="progress-bar-bg" style="margin-bottom: 8px;">
+        <div class="progress-bar-fill" id="progress-bar-fill"></div>
+      </div>
+      
+      <div style="display: flex; justify-content: space-between; font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px;">
+        <span id="progress-status-text">Processing records...</span>
+        <span id="progress-percent-text" style="font-weight: 700; color: var(--btn-primary);">0%</span>
+      </div>
+
+      <!-- Real-time Analytics Metrics Grid -->
+      <div style="background: var(--bg-card); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.78rem; margin-bottom: 16px;">
+        <div><span style="color: var(--text-muted);">Current File:</span> <strong id="progress-file-name" style="color: var(--text-main);">—</strong></div>
+        <div><span style="color: var(--text-muted);">Participant:</span> <strong id="progress-participant-name" style="color: #06B6D4;">—</strong></div>
+        <div><span style="color: var(--text-muted);">Speed:</span> <strong id="progress-speed" style="color: var(--accent-success);">0 certs/sec</strong></div>
+        <div><span style="color: var(--text-muted);">Elapsed / ETA:</span> <strong id="progress-elapsed">0s</strong> / <strong id="progress-eta">0s</strong></div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button class="btn btn-secondary btn-sm" id="btn-pause-resume" onclick="window.generatorEngine.togglePause()">⏸️ Pause</button>
+        <button class="btn btn-danger btn-sm" onclick="window.generatorEngine.cancel()">❌ Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Generation Summary Report Modal -->
+  <div class="modal-overlay" id="summary-modal">
+    <div class="modal-card" style="max-width: 520px; width: 100%;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <h3 style="font-size: 1.2rem; font-weight: 700; color: var(--accent-success);" id="summary-modal-title">✓ Generation Completed Successfully</h3>
+        <span class="badge badge-primary" id="summary-zip-badge">ZIP Ready</span>
+      </div>
+      <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 16px;">All certificates processed and packaged into ZIP archive.</p>
+
+      <div style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.82rem; margin-bottom: 16px;">
+        <div><span style="color: var(--text-muted);">Certificates Generated:</span> <strong id="sum-total" style="color: var(--text-primary);">0</strong></div>
+        <div><span style="color: var(--text-muted);">Successful:</span> <strong id="sum-success" style="color: var(--accent-success);">0</strong></div>
+        <div><span style="color: var(--text-muted);">Skipped:</span> <strong id="sum-skipped" style="color: var(--accent-warning);">0</strong></div>
+        <div><span style="color: var(--text-muted);">Failed:</span> <strong id="sum-failed" style="color: var(--accent-danger);">0</strong></div>
+        <div><span style="color: var(--text-muted);">Generation Time:</span> <strong id="sum-duration" style="color: var(--text-primary);">0s</strong></div>
+        <div><span style="color: var(--text-muted);">ZIP Size:</span> <strong id="sum-zip-size" style="color: var(--text-primary);">0 MB</strong></div>
+      </div>
+
+      <div id="summary-error-log-container" style="display: none; margin-bottom: 16px;">
+        <div style="font-size: 0.78rem; font-weight: 700; color: var(--accent-danger); margin-bottom: 4px;">Generation Audit Log</div>
+        <div id="summary-error-log-body" style="max-height: 100px; overflow-y: auto; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px; font-size: 0.75rem; font-family: monospace;"></div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('summary-modal').classList.remove('active')">Close</button>
+        <button class="btn btn-primary btn-sm" id="btn-download-zip-summary">💾 Download ZIP</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <!-- JS Modules (Cache-Busted for Production Stability) -->
+  <script src="js/state.js?v=1.0.1"></script>
+  <script src="js/storage.js?v=1.0.1"></script>
+  <script src="js/font-manager.js?v=1.0.1"></script>
+  <script src="js/template-manager.js?v=1.0.1"></script>
+  <script src="js/excel-manager.js?v=1.0.1"></script>
+  <script src="js/auto-mapper.js?v=1.0.1"></script>
+  <script src="js/canvas-editor.js?v=1.0.1"></script>
+  <script src="js/generator-engine.js?v=1.0.1"></script>
+  <script src="js/progress-manager.js?v=1.0.1"></script>
+  <script src="js/reports-manager.js?v=1.0.1"></script>
+  <script src="js/config-manager.js?v=1.0.1"></script>
+  <script src="js/app.js?v=1.0.1"></script>
+
+</body>
+</html>

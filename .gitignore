@@ -1,0 +1,17 @@
+# OS Generated files
+.DS_Store
+.DS_Store?
+*_.line_backup
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+
+# Editor directories
+.vscode/
+.idea/
+*.suo
+*.user
+
+# Temporary files
+*.tmp
+*.log
