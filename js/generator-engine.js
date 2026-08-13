@@ -1,5 +1,5 @@
 /* ==========================================================================
-   ENTERPRISE CERTIFICATE GENERATOR - HIGH PERFORMANCE BATCH GENERATION ENGINE
+   ENTERPRISE CERTIFICATE GENERATOR - BATCH GENERATION ENGINE
    ========================================================================== */
 
 class GeneratorEngine {
@@ -7,173 +7,108 @@ class GeneratorEngine {
     this.isGenerating = false;
     this.isPaused = false;
     this.isCancelled = false;
-    this.totalRecords = 0;
+
     this.processedRecords = 0;
     this.skippedRecords = 0;
     this.failedRecords = 0;
-    this.startTime = 0;
-    this.generatedExampleNames = [];
-    this.sharedExportCanvas = null;
-    this.sharedExportCtx = null;
-    this.imageCache = new Map();
+    this.totalRecords = 0;
+
+    this.startTime = null;
     this.latestZipBlob = null;
     this.latestZipFilename = 'Certificates.zip';
+
     this.pendingLockedPairs = [];
+    this.imageCache = new Map();
+    this.sharedExportCanvas = null;
+    this.sharedExportCtx = null;
   }
 
-  togglePause() {
-    if (!this.isGenerating) return;
-    this.isPaused = !this.isPaused;
-    if (this.isPaused) {
-      console.log('[CertiGen Generator] Execution Paused.');
-      window.appState.notify('generation_paused');
-    } else {
-      console.log('[CertiGen Generator] Execution Resumed.');
-      window.appState.notify('generation_resumed');
-    }
-  }
-
-  cancel() {
-    if (!this.isGenerating) return;
-    console.log('[CertiGen Generator] Cancelling generation...');
-    this.isCancelled = true;
-    this.isPaused = false;
-    this.isGenerating = false;
-    window.progressManager.hideModal();
-    window.appState.notify('toast', { type: 'info', message: 'Certificate generation cancelled.' });
-  }
-
-  async testZipDiagnostic() {
-    console.log('[CertiGen Diagnostic] Testing JSZip compilation with test.txt...');
-    try {
-      if (typeof JSZip === 'undefined' || typeof saveAs === 'undefined') {
-        alert('Diagnostic Error: JSZip or FileSaver vendor library is missing.');
-        return;
-      }
-
-      const zip = new JSZip();
-      zip.file('Certificates/TestFolder/test.txt', `CertiGen Pro Diagnostic Test File\nTimestamp: ${new Date().toISOString()}\nStatus: JSZip Engine Operational.\n`);
-      
-      const zipBlob = await zip.generateAsync({
-        type: 'blob',
-        compression: 'DEFLATE',
-        compressionOptions: { level: 6 }
-      });
-
-      if (!zipBlob || !(zipBlob instanceof Blob) || zipBlob.size === 0) {
-        alert('Diagnostic Failed: JSZip generated a 0 byte or invalid blob.');
-        return;
-      }
-
-      saveAs(zipBlob, 'TestDiagnostic.zip');
-      console.log(`[CertiGen Diagnostic] Diagnostic ZIP generated successfully (${zipBlob.size} bytes).`);
-      alert('✅ Diagnostic ZIP (TestDiagnostic.zip) created successfully! If Windows Explorer opens this file, JSZip engine is 100% operational.');
-    } catch (err) {
-      console.error('[CertiGen Diagnostic] Error:', err);
-      alert(`Diagnostic Error: ${err.message}`);
-    }
-  }
-
-  startBulkGeneration() {
-    console.log('[CertiGen Generator] Step 1: "Generate All" button clicked.');
-
+  async startBulkGeneration() {
     if (this.isGenerating) {
       console.warn('[CertiGen Generator] Generation already in progress.');
       return;
     }
 
+    console.log('[CertiGen Generator] Step 1: "Generate All" button clicked.');
     const assignedPairs = window.appState.getAssignedPairs();
-    const preFlight = this.validatePreFlight(assignedPairs);
 
-    this.showPreFlightModal(assignedPairs, preFlight);
+    if (!assignedPairs || assignedPairs.length === 0) {
+      alert('No template-to-excel assignments found! Please map your templates to Excel files in the Assignment tab before generating.');
+      return;
+    }
+
+    this.showPreFlightModal(assignedPairs);
   }
 
-  showPreFlightModal(assignedPairs, preFlight) {
+  showPreFlightModal(assignedPairs) {
     const modal = document.getElementById('preflight-modal');
+    const badgeEl = document.getElementById('preflight-readiness-badge');
+    const progressText = document.getElementById('preflight-progress-text');
+    const progressSvgCircle = document.getElementById('preflight-progress-circle');
+    const btnExec = document.getElementById('btn-execute-preflight-gen');
+    const actionGuidance = document.getElementById('preflight-action-guidance');
+
     if (!modal) {
       this.executeGenerationFromPreflight();
       return;
     }
 
-    const checklistContainer = document.getElementById('preflight-checklist');
-    const actionsContainer = document.getElementById('preflight-actions-container');
-    const actionsList = document.getElementById('preflight-actions-list');
-    const badgeEl = document.getElementById('preflight-status-badge');
-    const btnExec = document.getElementById('btn-start-generation-exec');
-
-    const hasTemplate = window.appState.templates.length > 0;
-    const hasExcel = window.appState.excelFiles.length > 0;
-    const hasAssigned = assignedPairs.length > 0;
-    const isMappingComplete = preFlight.isValid;
-
-    const checklistItems = [
-      { label: 'Template Uploaded', pass: hasTemplate, reason: 'No certificate template uploaded.', targetView: 'templates', actionBtn: 'Go to Templates' },
-      { label: 'Excel Loaded', pass: hasExcel, reason: 'No Excel workbook uploaded.', targetView: 'excel', actionBtn: 'Go to Excel Files' },
-      { label: 'Assignment Complete', pass: hasAssigned, reason: 'Template has not been assigned to an Excel file.', targetView: 'assignments', actionBtn: 'Open Assignment Manager' },
-      { label: 'Fields Mapped', pass: isMappingComplete, reason: 'Participant name or required text field is not mapped.', targetView: 'mapping', actionBtn: 'Open Field Mapping' },
-      { label: 'Font Settings Saved', pass: true },
-      { label: 'Output Folder Ready', pass: true },
-      { label: 'Template Image Loaded', pass: hasTemplate },
-      { label: 'Required Columns Available', pass: isMappingComplete },
-      { label: 'Canvas Ready', pass: true },
-      { label: 'ZIP Engine Ready', pass: typeof JSZip !== 'undefined' },
-      { label: 'Browser Compatible', pass: true }
+    const checks = [
+      { id: 'check-tpl-uploaded', pass: window.appState.templates.length > 0, label: 'Certificate Template Uploaded', targetView: 'templates' },
+      { id: 'check-excel-loaded', pass: window.appState.excelFiles.length > 0, label: 'Excel File Uploaded', targetView: 'excel' },
+      { id: 'check-tpl-assigned', pass: assignedPairs.length > 0, label: 'Template Assigned', targetView: 'assignments' },
+      { id: 'check-excel-assigned', pass: assignedPairs.length > 0, label: 'Excel Assigned', targetView: 'assignments' },
+      { id: 'check-mapping-comp', pass: assignedPairs.every(p => p.template.fields && p.template.fields.length > 0), label: 'Field Mapping Completed', targetView: 'mapping' },
+      { id: 'check-name-linked', pass: assignedPairs.every(p => p.template.fields.some(f => /name|participant|student/i.test(f.field || f.linkedColumn))), label: 'Name Field Linked', targetView: 'mapping' },
+      { id: 'check-req-present', pass: true, label: 'Required Fields Present', targetView: 'editor' },
+      { id: 'check-font-saved', pass: true, label: 'Font Settings Saved', targetView: 'editor' },
+      { id: 'check-output-ready', pass: true, label: 'Output Folder Ready', targetView: 'settings' },
+      { id: 'check-img-loaded', pass: assignedPairs.every(p => p.template.dataUrl && p.template.dataUrl.length > 100), label: 'Template Image Loaded', targetView: 'templates' },
+      { id: 'check-data-valid', pass: assignedPairs.every(p => p.excel.rows && p.excel.rows.length > 0), label: 'Data Rows Valid', targetView: 'excel' }
     ];
 
-    const passedCount = checklistItems.filter(i => i.pass).length;
-    const scorePct = Math.round((passedCount / checklistItems.length) * 100);
-    const allPassed = scorePct === 100;
+    let passedCount = 0;
+    const failedActions = [];
 
-    // Update Circular Progress SVG
-    const circlePath = document.getElementById('readiness-circle-path');
-    const scoreText = document.getElementById('readiness-score-text');
-    const scoreTitle = document.getElementById('readiness-score-title');
-    const scoreSub = document.getElementById('readiness-score-subtitle');
+    checks.forEach(c => {
+      const checkEl = document.getElementById(c.id);
+      if (checkEl) {
+        if (c.pass) {
+          checkEl.innerHTML = `<span style="color: var(--accent-success); font-weight: 700;">✔</span> <span style="color: var(--text-main);">${c.label}</span>`;
+          passedCount++;
+        } else {
+          checkEl.innerHTML = `<span style="color: var(--accent-danger); font-weight: 700;">✖</span> <span style="color: var(--accent-danger);">${c.label}</span>`;
+          failedActions.push(c);
+        }
+      }
+    });
 
-    if (circlePath) {
-      circlePath.setAttribute('stroke-dasharray', `${scorePct}, 100`);
-      circlePath.setAttribute('stroke', allPassed ? 'var(--accent-success)' : 'var(--accent-danger)');
-    }
-    if (scoreText) {
-      scoreText.textContent = `${scorePct}%`;
-      scoreText.style.color = allPassed ? 'var(--text-primary)' : 'var(--accent-danger)';
-    }
-    if (scoreTitle) {
-      scoreTitle.textContent = allPassed ? '100% Ready' : `${scorePct}% Action Required`;
-    }
-    if (scoreSub) {
-      scoreSub.textContent = allPassed ? 'All 11 system validations passed cleanly.' : `${checklistItems.length - passedCount} configuration check(s) require attention.`;
-    }
+    const scorePct = Math.round((passedCount / checks.length) * 100);
+    const allPassed = passedCount === checks.length;
 
-    if (checklistContainer) {
-      checklistContainer.innerHTML = checklistItems.map(item => `
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 2px 0;">
-          <div style="display: flex; align-items: center; gap: 6px;">
-            <span>${item.pass ? '<strong style="color: var(--accent-success);">✔</strong>' : '<strong style="color: var(--accent-danger);">❌</strong>'}</span>
-            <span style="color: ${item.pass ? 'var(--text-primary)' : 'var(--accent-danger)'}; font-weight: ${item.pass ? '500' : '600'};">${item.label}</span>
-          </div>
-          <span style="font-size: 0.72rem; color: ${item.pass ? 'var(--accent-success)' : 'var(--accent-danger)'}; font-weight: 600;">${item.pass ? 'PASS' : 'FAIL'}</span>
-        </div>
-      `).join('');
+    if (progressText) progressText.textContent = `${scorePct}%`;
+    if (progressSvgCircle) {
+      const strokeDash = Math.round((scorePct / 100) * 283);
+      progressSvgCircle.setAttribute('stroke-dasharray', `${strokeDash}, 283`);
     }
 
-    const failedItems = checklistItems.filter(item => !item.pass);
-
-    if (actionsContainer && actionsList) {
-      if (failedItems.length > 0) {
-        actionsContainer.style.display = 'block';
-        actionsList.innerHTML = failedItems.map(f => `
-          <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
-            <div>
-              <strong style="color: var(--accent-danger);">❌ ${f.label}</strong>: 
-              <span style="color: var(--text-muted);">${f.reason}</span>
-            </div>
-            ${f.targetView ? `<button class="btn btn-secondary btn-sm" style="white-space: nowrap;" onclick="document.getElementById('preflight-modal').classList.remove('active'); window.appController.switchView('${f.targetView}');">${f.actionBtn}</button>` : ''}
-          </div>
-        `).join('');
+    if (actionGuidance) {
+      if (allPassed) {
+        actionGuidance.style.display = 'none';
       } else {
-        actionsContainer.style.display = 'none';
-        actionsList.innerHTML = '';
+        actionGuidance.style.display = 'block';
+        actionGuidance.innerHTML = `
+          <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid var(--accent-danger); padding: 10px; border-radius: var(--radius-sm); margin-bottom: 12px;">
+            <strong style="color: var(--accent-danger); font-size: 0.8rem;">Action Required (${failedActions.length} check failed):</strong>
+            <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
+              ${failedActions.map(act => `
+                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('preflight-modal').classList.remove('active'); window.appController.switchView('${act.targetView}')">
+                  Fix ${act.label} →
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        `;
       }
     }
 
@@ -292,7 +227,7 @@ class GeneratorEngine {
 
         const zipFilename = window.appState.settings.defaultZipName || 'Certificates.zip';
         this.latestZipFilename = zipFilename;
-        
+
         const zipBlob = await zip.generateAsync({
           type: "blob",
           compression: "DEFLATE",
@@ -493,10 +428,13 @@ class GeneratorEngine {
   }
 
   generateFilename(record, recordIdx, format, usedFilenamesSet) {
-    let namingPattern = window.appState.settings.filenameTemplate || '{Name}';
+    let namingPattern = window.appState.settings.filenameTemplate || '{Name} - {College}';
 
     const nameKey = Object.keys(record).find(k => /name|student|participant|candidate/i.test(k)) || Object.keys(record)[0];
+    const collegeKey = Object.keys(record).find(k => /college|institute|university|organization|school|institution/i.test(k));
+
     const nameValue = record[nameKey] !== undefined ? String(record[nameKey]).trim() : '';
+    const collegeValue = collegeKey && record[collegeKey] !== undefined ? String(record[collegeKey]).trim() : '';
 
     let baseName = '';
 
@@ -505,10 +443,18 @@ class GeneratorEngine {
       for (const [key, val] of Object.entries(record)) {
         baseName = baseName.replace(new RegExp(`\\{${key}\\}`, 'gi'), String(val));
       }
+      baseName = baseName.replace(/\{Name\}/gi, nameValue);
+      baseName = baseName.replace(/\{College\}/gi, collegeValue);
     }
 
-    if (!baseName || baseName.includes('{') || baseName.trim() === '') {
-      baseName = nameValue;
+    if (!baseName || baseName.includes('{') || baseName.trim() === '' || baseName.trim() === '-') {
+      if (nameValue && collegeValue) {
+        baseName = `${nameValue} - ${collegeValue}`;
+      } else if (nameValue) {
+        baseName = nameValue;
+      } else if (collegeValue) {
+        baseName = collegeValue;
+      }
     }
 
     if (!baseName || baseName.trim() === '') {
@@ -516,7 +462,7 @@ class GeneratorEngine {
       baseName = `Certificate_${padNum}`;
     }
 
-    let sanitized = this.sanitizeName(baseName, 80);
+    let sanitized = this.sanitizeName(baseName, 120);
     if (!sanitized) {
       sanitized = `Certificate_${String(recordIdx + 1).padStart(3, '0')}`;
     }
@@ -533,7 +479,7 @@ class GeneratorEngine {
     return finalFilename;
   }
 
-  sanitizeName(str, maxLen = 40) {
+  sanitizeName(str, maxLen = 120) {
     if (!str) return 'Untitled';
     let clean = String(str).replace(/[\/\?:*?"<>|\\]/g, ' ').replace(/\s+/g, ' ').trim();
     if (clean.length > maxLen) {
