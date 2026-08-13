@@ -379,7 +379,7 @@ class GeneratorEngine {
             continue;
           }
 
-          const filename = this.generateFilename(record, recordIdx, format, usedFilenamesSet);
+          const filename = this.generateFilename(record, recordIdx, format, usedFilenamesSet, template);
           const fullZipPath = `Certificates/${templateFolder}/${filename}`;
 
           zip.file(fullZipPath, blob);
@@ -427,24 +427,61 @@ class GeneratorEngine {
     });
   }
 
-  generateFilename(record, recordIdx, format, usedFilenamesSet) {
-    let namingPattern = window.appState.settings.filenameTemplate || '{Name} - {College}';
+  generateFilename(record, recordIdx, format, usedFilenamesSet, template) {
+    let namingPattern = (window.appState && window.appState.settings && window.appState.settings.filenameTemplate) || '{Name} - {College}';
 
-    const nameKey = Object.keys(record).find(k => /name|student|participant|candidate/i.test(k)) || Object.keys(record)[0];
-    const collegeKey = Object.keys(record).find(k => /college|institute|university|organization|school|institution/i.test(k));
+    if (namingPattern === '{Name}') {
+      namingPattern = '{Name} - {College}';
+      if (window.appState && window.appState.settings) {
+        window.appState.settings.filenameTemplate = '{Name} - {College}';
+      }
+    }
 
-    const nameValue = record[nameKey] !== undefined ? String(record[nameKey]).trim() : '';
-    const collegeValue = collegeKey && record[collegeKey] !== undefined ? String(record[collegeKey]).trim() : '';
+    const recordKeys = Object.keys(record || {});
 
+    // 1. Participant Name Resolution
+    let nameKey = recordKeys.find(k => /participant\s*name|student\s*name|candidate\s*name|^name$/i.test(k.trim()));
+    if (!nameKey) nameKey = recordKeys.find(k => /name|student|participant|candidate/i.test(k));
+    if (!nameKey && template && template.fields) {
+      const nameField = template.fields.find(f => /name|participant|student/i.test(f.field || f.linkedColumn));
+      if (nameField) nameKey = nameField.linkedColumn || nameField.field;
+    }
+    if (!nameKey && recordKeys.length > 0) nameKey = recordKeys[0];
+
+    const nameValue = (nameKey && record[nameKey] !== undefined) ? String(record[nameKey]).trim() : '';
+
+    // 2. College Name Resolution
+    let collegeKey = recordKeys.find(k => /college\s*name|institution\s*name|university\s*name|^college$|^institution$/i.test(k.trim()));
+    if (!collegeKey) collegeKey = recordKeys.find(k => /college|institute|university|organization|school|institution|dept|department/i.test(k));
+    if (!collegeKey && template && template.fields) {
+      const collegeField = template.fields.find(f => /college|institute|university|institution|school/i.test(f.field || f.linkedColumn));
+      if (collegeField) collegeKey = collegeField.linkedColumn || collegeField.field;
+    }
+
+    let collegeValue = (collegeKey && record[collegeKey] !== undefined) ? String(record[collegeKey]).trim() : '';
+
+    if (!collegeValue) {
+      for (const [k, v] of Object.entries(record || {})) {
+        if (k !== nameKey && typeof v === 'string' && v.trim().length > 2 && /college|institute|university|academy|school|engineering|technology|polytechnic|arts/i.test(v)) {
+          collegeValue = v.trim();
+          break;
+        }
+      }
+    }
+
+    // 3. Assemble Base Filename
     let baseName = '';
 
     if (namingPattern.includes('{')) {
       baseName = namingPattern;
-      for (const [key, val] of Object.entries(record)) {
-        baseName = baseName.replace(new RegExp(`\\{${key}\\}`, 'gi'), String(val));
+      for (const k of recordKeys) {
+        if (record[k] !== undefined && record[k] !== null) {
+          const valStr = String(record[k]).trim();
+          baseName = baseName.replace(new RegExp(`\\{${k.trim()}\\}`,'gi'), valStr);
+        }
       }
-      baseName = baseName.replace(/\{Name\}/gi, nameValue);
-      baseName = baseName.replace(/\{College\}/gi, collegeValue);
+      baseName = baseName.replace(/\{Participant\s*Name\}|\{Student\s*Name\}|\{Name\}/gi, nameValue);
+      baseName = baseName.replace(/\{College\s*Name\}|\{Institution\s*Name\}|\{College\}|\{Institution\}/gi, collegeValue);
     }
 
     if (!baseName || baseName.includes('{') || baseName.trim() === '' || baseName.trim() === '-') {
@@ -454,6 +491,10 @@ class GeneratorEngine {
         baseName = nameValue;
       } else if (collegeValue) {
         baseName = collegeValue;
+      }
+    } else {
+      if (collegeValue && !baseName.toLowerCase().includes(collegeValue.toLowerCase())) {
+        baseName = `${baseName} - ${collegeValue}`;
       }
     }
 
