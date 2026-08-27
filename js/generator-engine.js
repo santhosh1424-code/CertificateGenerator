@@ -435,7 +435,7 @@ class GeneratorEngine {
   }
 
   generateFilename(record, recordIdx, format, usedFilenamesSet, template) {
-    let namingPattern = (window.appState && window.appState.settings && window.appState.settings.filenameTemplate) || '{Name} - {College} - {TeamID}';
+    let namingPattern = (window.appState && window.appState.settings && window.appState.settings.filenameTemplate) || '{Name}';
 
     const recordKeys = Object.keys(record || {});
 
@@ -495,17 +495,12 @@ class GeneratorEngine {
       baseName = baseName.replace(/\{TeamID\}|\{Team\s*ID\}|\{Team_ID\}|\{Team\}/gi, teamValue);
     }
 
-    // Cleanup empty placeholder remnants if teamValue or collegeValue was missing
+    // Cleanup empty placeholder remnants
     baseName = baseName.replace(/\s*-\s*-\s*/g, ' - ').replace(/\s*-\s*$/g, '').replace(/^\s*-\s*/g, '').trim();
     baseName = baseName.replace(/__+/g, '_').replace(/^_|_$/g, '').trim();
 
     if (!baseName || baseName.includes('{') || baseName.trim() === '' || baseName.trim() === '-') {
-      const parts = [];
-      if (nameValue) parts.push(nameValue);
-      if (collegeValue) parts.push(collegeValue);
-      if (teamValue) parts.push(teamValue);
-
-      baseName = parts.length > 0 ? parts.join(' - ') : `Certificate_${String(recordIdx + 1).padStart(3, '0')}`;
+      baseName = nameValue || `Certificate_${String(recordIdx + 1).padStart(3, '0')}`;
     }
 
     let sanitized = this.sanitizeName(baseName, 120);

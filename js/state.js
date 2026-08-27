@@ -17,7 +17,7 @@ class AppState {
     
     this.settings = {
       outputFormat: 'png',
-      filenameTemplate: '{Name} - {College} - {TeamID}',
+      filenameTemplate: '{Name}',
       defaultZipName: 'Certificates.zip',
       autoFitFont: true,
       minFontSize: 12,
