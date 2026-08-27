@@ -428,14 +428,7 @@ class GeneratorEngine {
   }
 
   generateFilename(record, recordIdx, format, usedFilenamesSet, template) {
-    let namingPattern = (window.appState && window.appState.settings && window.appState.settings.filenameTemplate) || '{Name} - {College}';
-
-    if (namingPattern === '{Name}') {
-      namingPattern = '{Name} - {College}';
-      if (window.appState && window.appState.settings) {
-        window.appState.settings.filenameTemplate = '{Name} - {College}';
-      }
-    }
+    let namingPattern = (window.appState && window.appState.settings && window.appState.settings.filenameTemplate) || '{Name} - {College} - {TeamID}';
 
     const recordKeys = Object.keys(record || {});
 
@@ -469,7 +462,17 @@ class GeneratorEngine {
       }
     }
 
-    // 3. Assemble Base Filename
+    // 3. Team ID Resolution (extracted directly from Excel record row)
+    let teamKey = recordKeys.find(k => /team\s*id|team\s*no|team\s*number|group\s*id|team\s*code|team\s*name|^team$|^group$/i.test(k.trim()));
+    if (!teamKey) teamKey = recordKeys.find(k => /team|group/i.test(k));
+    if (!teamKey && template && template.fields) {
+      const teamField = template.fields.find(f => /team|group/i.test(f.field || f.linkedColumn));
+      if (teamField) teamKey = teamField.linkedColumn || teamField.field;
+    }
+
+    const teamValue = (teamKey && record[teamKey] !== undefined) ? String(record[teamKey]).trim() : '';
+
+    // 4. Assemble Base Filename
     let baseName = '';
 
     if (namingPattern.includes('{')) {
@@ -482,25 +485,20 @@ class GeneratorEngine {
       }
       baseName = baseName.replace(/\{Participant\s*Name\}|\{Student\s*Name\}|\{Name\}/gi, nameValue);
       baseName = baseName.replace(/\{College\s*Name\}|\{Institution\s*Name\}|\{College\}|\{Institution\}/gi, collegeValue);
+      baseName = baseName.replace(/\{TeamID\}|\{Team\s*ID\}|\{Team_ID\}|\{Team\}/gi, teamValue);
     }
+
+    // Cleanup empty placeholder remnants if teamValue or collegeValue was missing
+    baseName = baseName.replace(/\s*-\s*-\s*/g, ' - ').replace(/\s*-\s*$/g, '').replace(/^\s*-\s*/g, '').trim();
+    baseName = baseName.replace(/__+/g, '_').replace(/^_|_$/g, '').trim();
 
     if (!baseName || baseName.includes('{') || baseName.trim() === '' || baseName.trim() === '-') {
-      if (nameValue && collegeValue) {
-        baseName = `${nameValue} - ${collegeValue}`;
-      } else if (nameValue) {
-        baseName = nameValue;
-      } else if (collegeValue) {
-        baseName = collegeValue;
-      }
-    } else {
-      if (collegeValue && !baseName.toLowerCase().includes(collegeValue.toLowerCase())) {
-        baseName = `${baseName} - ${collegeValue}`;
-      }
-    }
+      const parts = [];
+      if (nameValue) parts.push(nameValue);
+      if (collegeValue) parts.push(collegeValue);
+      if (teamValue) parts.push(teamValue);
 
-    if (!baseName || baseName.trim() === '') {
-      const padNum = String(recordIdx + 1).padStart(3, '0');
-      baseName = `Certificate_${padNum}`;
+      baseName = parts.length > 0 ? parts.join(' - ') : `Certificate_${String(recordIdx + 1).padStart(3, '0')}`;
     }
 
     let sanitized = this.sanitizeName(baseName, 120);
