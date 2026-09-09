@@ -5,6 +5,14 @@
 class AppController {
   constructor() {
     this.currentView = 'dashboard';
+    this.excelPreviewState = {
+      activeExcelId: null,
+      currentPage: 1,
+      pageSize: 15,
+      searchQuery: '',
+      sortColumn: null,
+      sortDirection: 'asc'
+    };
   }
 
   async init() {
@@ -56,6 +64,20 @@ class AppController {
         document.getElementById('theme-btn-label').textContent = newTheme === 'light' ? 'Light Mode' : 'Dark Mode';
       });
     }
+
+    // Keyboard navigation support for Spreadsheet Data Preview
+    document.addEventListener('keydown', (e) => {
+      if (this.currentView !== 'excel') return;
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT' || activeEl.isContentEditable)) {
+        return;
+      }
+      if (e.key === 'ArrowLeft') {
+        this.changeExcelPreviewPage(-1);
+      } else if (e.key === 'ArrowRight') {
+        this.changeExcelPreviewPage(1);
+      }
+    });
   }
 
   switchView(viewName) {
@@ -306,7 +328,11 @@ class AppController {
     });
 
     if (excels.length > 0) {
-      this.renderExcelPreview(excels[0].id);
+      if (!this.excelPreviewState.activeExcelId || !excels.some(e => e.id === this.excelPreviewState.activeExcelId)) {
+        this.renderExcelPreview(excels[0].id);
+      } else {
+        this.renderExcelPreview();
+      }
     }
   }
 
@@ -314,33 +340,219 @@ class AppController {
     const container = document.getElementById('excel-table-container');
     if (!container) return;
 
-    const excelObj = window.appState.excelFiles.find(e => e.id === excelId);
+    if (excelId) {
+      if (this.excelPreviewState.activeExcelId !== excelId) {
+        this.excelPreviewState.activeExcelId = excelId;
+        this.excelPreviewState.currentPage = 1;
+        this.excelPreviewState.searchQuery = '';
+        this.excelPreviewState.sortColumn = null;
+        this.excelPreviewState.sortDirection = 'asc';
+      }
+    }
+
+    const currentExcelId = this.excelPreviewState.activeExcelId;
+    const excelObj = window.appState.excelFiles.find(e => e.id === currentExcelId);
+
     if (!excelObj || !excelObj.rows || excelObj.rows.length === 0) {
       container.innerHTML = `<p style="padding: 16px; color: var(--text-muted);">No data records available in selected file.</p>`;
       return;
     }
 
-    const headers = excelObj.headers || Object.keys(excelObj.rows[0]);
-    const displayRows = excelObj.rows.slice(0, 15);
+    const headers = excelObj.headers || (excelObj.rows.length > 0 ? Object.keys(excelObj.rows[0]) : []);
+    const totalRecords = excelObj.rows.length;
 
-    let html = `<table class="data-table"><thead><tr><th>#</th>`;
-    headers.forEach(h => html += `<th>${h}</th>`);
-    html += `</tr></thead><tbody>`;
-
-    displayRows.forEach((row, rIdx) => {
-      html += `<tr><td>${rIdx + 1}</td>`;
-      headers.forEach(h => {
-        html += `<td>${row[h] !== undefined ? row[h] : ''}</td>`;
+    // 1. Search / Filter (Non-mutating)
+    let filteredRows = excelObj.rows;
+    const query = (this.excelPreviewState.searchQuery || '').trim().toLowerCase();
+    if (query !== '') {
+      filteredRows = excelObj.rows.filter(row => {
+        return headers.some(h => {
+          const val = row[h];
+          return val !== undefined && val !== null && String(val).toLowerCase().includes(query);
+        });
       });
-      html += `</tr>`;
-    });
-
-    html += `</tbody></table>`;
-    if (excelObj.rows.length > 15) {
-      html += `<div style="padding: 8px 14px; font-size: 0.78rem; color: var(--text-muted); background: var(--bg-card); border-top: 1px solid var(--border-color);">Showing first 15 of ${excelObj.rows.length} total records</div>`;
     }
 
+    // 2. Sort (Non-mutating)
+    const sortCol = this.excelPreviewState.sortColumn;
+    const sortDir = this.excelPreviewState.sortDirection;
+    if (sortCol && headers.includes(sortCol)) {
+      filteredRows = [...filteredRows].sort((a, b) => {
+        const valA = String(a[sortCol] !== undefined && a[sortCol] !== null ? a[sortCol] : '').trim();
+        const valB = String(b[sortCol] !== undefined && b[sortCol] !== null ? b[sortCol] : '').trim();
+        const numA = Number(valA);
+        const numB = Number(valB);
+        if (!isNaN(numA) && !isNaN(numB) && valA !== '' && valB !== '') {
+          return sortDir === 'asc' ? numA - numB : numB - numA;
+        }
+        return sortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      });
+    }
+
+    const filteredCount = filteredRows.length;
+    const pageSize = this.excelPreviewState.pageSize || 15;
+    const totalPages = Math.max(1, Math.ceil(filteredCount / pageSize));
+    let currentPage = this.excelPreviewState.currentPage || 1;
+
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+    this.excelPreviewState.currentPage = currentPage;
+
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = Math.min(startIndex + pageSize, filteredCount);
+    const pageRows = filteredRows.slice(startIndex, endIndex);
+
+    // Render Search Bar & Page Size Selector Toolbar
+    let html = `
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--bg-card); border-bottom: 1px solid var(--border-color); gap: 12px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 200px;">
+          <input type="text" class="text-input" placeholder="🔍 Search records..." value="${this.escapeHtml(this.excelPreviewState.searchQuery)}" 
+                 oninput="window.appController.onExcelSearchInput(this.value)" style="padding: 4px 10px; font-size: 0.82rem; width: 100%; max-width: 280px;">
+          ${query !== '' ? `<button class="btn btn-secondary btn-sm" onclick="window.appController.onExcelSearchInput('')">Clear</button>` : ''}
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--text-muted);">
+          <span>Rows per page:</span>
+          <select class="select-input" style="padding: 2px 8px; font-size: 0.82rem;" onchange="window.appController.onExcelPageSizeChange(this.value)">
+            <option value="15" ${pageSize === 15 ? 'selected' : ''}>15</option>
+            <option value="25" ${pageSize === 25 ? 'selected' : ''}>25</option>
+            <option value="50" ${pageSize === 50 ? 'selected' : ''}>50</option>
+            <option value="100" ${pageSize === 100 ? 'selected' : ''}>100</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="overflow-x: auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width: 50px;">#</th>
+              ${headers.map(h => {
+                const isSorted = sortCol === h;
+                const arrow = isSorted ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+                return `<th style="cursor: pointer; user-select: none;" title="Click to sort by ${this.escapeHtml(h)}" onclick="window.appController.toggleExcelSort('${this.escapeHtml(h)}')">
+                  ${this.escapeHtml(h)}<span style="color: var(--btn-primary); font-size: 0.75rem;">${arrow}</span>
+                </th>`;
+              }).join('')}
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    if (pageRows.length === 0) {
+      html += `<tr><td colspan="${headers.length + 1}" style="text-align: center; color: var(--text-muted); padding: 24px;">No matching records found.</td></tr>`;
+    } else {
+      pageRows.forEach((row, rIdx) => {
+        const globalRecordNum = startIndex + rIdx + 1;
+        html += `<tr><td style="font-weight: 600; color: var(--text-muted);">${globalRecordNum}</td>`;
+        headers.forEach(h => {
+          html += `<td>${this.escapeHtml(row[h] !== undefined && row[h] !== null ? String(row[h]) : '')}</td>`;
+        });
+        html += `</tr>`;
+      });
+    }
+
+    html += `</tbody></table></div>`;
+
+    // Render Footer with Record Counts and Compact Pagination Buttons
+    const displayStart = filteredCount > 0 ? startIndex + 1 : 0;
+    const countLabel = query !== '' 
+      ? `Showing ${displayStart}–${endIndex} of ${filteredCount} records (filtered from ${totalRecords} total)`
+      : `Showing ${displayStart}–${endIndex} of ${totalRecords} total records`;
+
+    html += `
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--bg-card); border-top: 1px solid var(--border-color); font-size: 0.8rem; flex-wrap: wrap; gap: 10px;">
+        <div style="color: var(--text-muted); font-weight: 500;">${countLabel}</div>
+
+        <div style="display: flex; align-items: center; gap: 4px;">
+          <button class="btn btn-secondary btn-sm" aria-label="Previous page" ${currentPage === 1 ? 'disabled' : ''} onclick="window.appController.setExcelPage(${currentPage - 1})">
+            ← Previous
+          </button>
+
+          ${this.renderPaginationButtons(currentPage, totalPages)}
+
+          <button class="btn btn-secondary btn-sm" aria-label="Next page" ${currentPage === totalPages ? 'disabled' : ''} onclick="window.appController.setExcelPage(${currentPage + 1})">
+            Next →
+          </button>
+        </div>
+      </div>
+    `;
+
     container.innerHTML = html;
+  }
+
+  renderPaginationButtons(currentPage, totalPages) {
+    if (totalPages <= 1) return '';
+
+    const pages = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push('...');
+      const start = Math.max(2, currentPage - 1);
+      const end = Math.min(totalPages - 1, currentPage + 1);
+      for (let i = start; i <= end; i++) pages.push(i);
+      if (currentPage < totalPages - 2) pages.push('...');
+      pages.push(totalPages);
+    }
+
+    return pages.map(p => {
+      if (p === '...') {
+        return `<span style="padding: 0 4px; color: var(--text-muted); user-select: none;">...</span>`;
+      }
+      const isCurrent = p === currentPage;
+      return `<button class="btn btn-sm ${isCurrent ? 'btn-primary' : 'btn-secondary'}" 
+                      aria-label="Go to page ${p}" 
+                      style="min-width: 28px; padding: 2px 6px; font-weight: ${isCurrent ? '700' : '400'};" 
+                      onclick="window.appController.setExcelPage(${p})">${p}</button>`;
+    }).join('');
+  }
+
+  escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  onExcelSearchInput(val) {
+    this.excelPreviewState.searchQuery = val;
+    this.excelPreviewState.currentPage = 1;
+    this.renderExcelPreview();
+  }
+
+  onExcelPageSizeChange(val) {
+    this.excelPreviewState.pageSize = parseInt(val, 10) || 15;
+    this.excelPreviewState.currentPage = 1;
+    this.renderExcelPreview();
+  }
+
+  toggleExcelSort(header) {
+    if (this.excelPreviewState.sortColumn === header) {
+      if (this.excelPreviewState.sortDirection === 'asc') {
+        this.excelPreviewState.sortDirection = 'desc';
+      } else {
+        this.excelPreviewState.sortColumn = null;
+        this.excelPreviewState.sortDirection = 'asc';
+      }
+    } else {
+      this.excelPreviewState.sortColumn = header;
+      this.excelPreviewState.sortDirection = 'asc';
+    }
+    this.renderExcelPreview();
+  }
+
+  setExcelPage(page) {
+    this.excelPreviewState.currentPage = page;
+    this.renderExcelPreview();
+  }
+
+  changeExcelPreviewPage(delta) {
+    this.setExcelPage(this.excelPreviewState.currentPage + delta);
   }
 
   renderAssignmentsTable() {
