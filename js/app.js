@@ -150,36 +150,9 @@ class AppController {
   }
 
   async processTemplateUploads(files) {
-    const filesToProcess = [];
-
-    for (const file of files) {
-      const existing = window.appState.templates.find(t => t.name === file.name);
-      if (existing) {
-        const choice = confirm(`Template "${file.name}" already exists.\n\nClick [OK] to Replace existing or [Cancel] to Keep Both / Duplicate.`);
-        if (choice) {
-          await window.appState.deleteTemplate(existing.id);
-        }
-      }
-
-      const processedTpl = await window.templateManager.processImageFile(file);
-      if (processedTpl) {
-        filesToProcess.push(processedTpl);
-      }
-    }
-
-    for (const tpl of filesToProcess) {
-      await window.appState.addTemplate(tpl);
-    }
-
+    await window.templateManager.handleTemplateUpload(files);
     this.renderTemplatesGrid();
     this.updateDashboardStats();
-
-    if (filesToProcess.length > 0) {
-      window.appState.notify('toast', {
-        type: 'success',
-        message: `Successfully added ${filesToProcess.length} template(s).`
-      });
-    }
   }
 
   async processExcelUpload(file) {

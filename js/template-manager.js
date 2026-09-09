@@ -1,10 +1,11 @@
 /* ==========================================================================
-   ENTERPRISE CERTIFICATE GENERATOR - TEMPLATE MANAGER SYSTEM
+   ENTERPRISE CERTIFICATE GENERATOR - HIGH-SPEED SMART TEMPLATE MANAGER
    ========================================================================== */
 
 class TemplateManager {
   constructor() {
     this.supportedFormats = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+    this.maxSafeDimension = 3508; // High-resolution A4 @ 300 DPI standard (3508 x 2480)
   }
 
   async handleTemplateUpload(files) {
@@ -23,9 +24,9 @@ class TemplateManager {
 
       try {
         const templateObj = await this.processSingleImage(file);
-        window.appState.addTemplate(templateObj);
+        await window.appState.addTemplate(templateObj);
         uploadedTemplates.push(templateObj);
-        console.log(`[TemplateManager] Successfully uploaded "${templateObj.name}" (${templateObj.width}x${templateObj.height}px)`);
+        console.log(`[TemplateManager] Successfully ingested template "${templateObj.name}" (${templateObj.width}x${templateObj.height}px)`);
       } catch (err) {
         console.error(`[TemplateManager] Failed to process "${file.name}":`, err);
         alert(`Error uploading "${file.name}": ${err.message}`);
@@ -35,7 +36,7 @@ class TemplateManager {
     if (uploadedTemplates.length > 0) {
       window.appState.notify('toast', {
         type: 'success',
-        message: `Successfully uploaded ${uploadedTemplates.length} template(s).`
+        message: `Successfully processed & optimized ${uploadedTemplates.length} template(s).`
       });
     }
 
@@ -46,96 +47,147 @@ class TemplateManager {
     return this.processSingleImage(file);
   }
 
-  processSingleImage(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
+  async processSingleImage(file) {
+    const objectUrl = URL.createObjectURL(file);
 
-      reader.onload = (e) => {
-        const dataUrl = e.target.result;
+    try {
+      let origWidth = 1920;
+      let origHeight = 1080;
+      let renderableSource = null;
+
+      // High-speed off-thread decoding via createImageBitmap if supported
+      if (typeof createImageBitmap === 'function') {
+        try {
+          const bitmap = await createImageBitmap(file);
+          origWidth = bitmap.width;
+          origHeight = bitmap.height;
+          renderableSource = bitmap;
+        } catch (bErr) {
+          console.warn('[TemplateManager] createImageBitmap fallback to Image element:', bErr);
+        }
+      }
+
+      if (!renderableSource) {
         const img = new Image();
+        img.src = objectUrl;
+        if (img.decode) {
+          await img.decode();
+        } else {
+          await new Promise((res, rej) => {
+            img.onload = () => res();
+            img.onerror = () => rej(new Error(`Failed to decode image "${file.name}".`));
+          });
+        }
+        origWidth = img.naturalWidth || img.width || 1920;
+        origHeight = img.naturalHeight || img.height || 1080;
+        renderableSource = img;
+      }
 
-        img.onload = () => {
-          const width = img.naturalWidth || img.width || 1920;
-          const height = img.naturalHeight || img.height || 1080;
+      // Detect if image exceeds safe A4 300 DPI limits (3508px max dimension) or file size > 5MB
+      let targetWidth = origWidth;
+      let targetHeight = origHeight;
 
-          // Default Master Template configuration:
-          // Participant Name -> Cinzel (42px, Bold=ON, Italic=OFF, Color=#000000, AutoFit=OFF)
-          // College Name -> Inter (24px, Bold=OFF, Italic=OFF, Color=#334155, AutoFit=OFF)
-          const templateObj = {
-            id: 'tpl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-            name: file.name,
-            dataUrl: dataUrl,
-            width: width,
-            height: height,
-            aspectRatio: width >= height ? 'Landscape' : 'Portrait',
-            fields: [
-              {
-                id: 'field_name_' + Date.now(),
-                field: 'Participant Name',
-                linkedColumn: 'Participant Name',
-                type: 'text',
-                x: Math.round(width * 0.2),
-                y: Math.round(height * 0.42),
-                width: Math.round(width * 0.6),
-                height: 60,
-                fontFamily: 'Cinzel',
-                fontSize: 42,
-                minFontSize: 16,
-                maxFontSize: 42,
-                bold: true,
-                fontWeight: 'bold',
-                italic: false,
-                fontStyle: 'normal',
-                underline: false,
-                color: '#000000',
-                textAlign: 'center',
-                verticalAlign: 'middle',
-                autoResize: false,
-                wordWrap: false,
-                lockPosition: false,
-                layerOrder: 1,
-                visibility: true
-              },
-              {
-                id: 'field_college_' + Date.now(),
-                field: 'College Name',
-                linkedColumn: 'College Name',
-                type: 'text',
-                x: Math.round(width * 0.2),
-                y: Math.round(height * 0.56),
-                width: Math.round(width * 0.6),
-                height: 40,
-                fontFamily: 'Inter',
-                fontSize: 24,
-                minFontSize: 12,
-                maxFontSize: 24,
-                bold: false,
-                fontWeight: 'normal',
-                italic: false,
-                fontStyle: 'normal',
-                underline: false,
-                color: '#334155',
-                textAlign: 'center',
-                verticalAlign: 'middle',
-                autoResize: false,
-                wordWrap: false,
-                lockPosition: false,
-                layerOrder: 2,
-                visibility: true
-              }
-            ]
-          };
+      if (origWidth > this.maxSafeDimension || origHeight > this.maxSafeDimension || file.size > 5 * 1024 * 1024) {
+        const scale = Math.min(this.maxSafeDimension / origWidth, this.maxSafeDimension / origHeight, 1.0);
+        targetWidth = Math.round(origWidth * scale);
+        targetHeight = Math.round(origHeight * scale);
+        console.log(`[TemplateManager] Auto-Optimizing High-Res Template "${file.name}": Original (${origWidth}x${origHeight}, ${(file.size / (1024 * 1024)).toFixed(1)}MB) → Standard A4 (${targetWidth}x${targetHeight})`);
+      }
 
-          resolve(templateObj);
-        };
+      // Render to downsampled canvas to generate optimized storage representation
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = targetWidth;
+      tempCanvas.height = targetHeight;
+      const ctx = tempCanvas.getContext('2d');
 
-        img.onerror = () => reject(new Error(`Failed to decode image "${file.name}".`));
-        img.src = dataUrl;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(renderableSource, 0, 0, targetWidth, targetHeight);
+
+      // Clean up ImageBitmap memory immediately
+      if (renderableSource && typeof renderableSource.close === 'function') {
+        renderableSource.close();
+      }
+
+      const mimeType = file.type === 'image/jpeg' ? 'image/jpeg' : 'image/png';
+      const optimizedDataUrl = tempCanvas.toDataURL(mimeType, 0.95);
+
+      // Release temporary canvas memory
+      tempCanvas.width = 0;
+      tempCanvas.height = 0;
+
+      // Default Master Template configuration:
+      // Participant Name -> Cinzel (42px, Bold=ON, Italic=OFF, Color=#000000, AutoFit=OFF)
+      // College Name -> Inter (24px, Bold=OFF, Italic=OFF, Color=#334155, AutoFit=OFF)
+      const templateObj = {
+        id: 'tpl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+        name: file.name,
+        dataUrl: optimizedDataUrl,
+        width: targetWidth,
+        height: targetHeight,
+        aspectRatio: targetWidth >= targetHeight ? 'Landscape' : 'Portrait',
+        fields: [
+          {
+            id: 'field_name_' + Date.now(),
+            field: 'Participant Name',
+            linkedColumn: 'Participant Name',
+            type: 'text',
+            x: Math.round(targetWidth * 0.2),
+            y: Math.round(targetHeight * 0.42),
+            width: Math.round(targetWidth * 0.6),
+            height: Math.round(targetHeight * 0.08),
+            fontFamily: 'Cinzel',
+            fontSize: Math.round(targetHeight * 0.045),
+            minFontSize: 16,
+            maxFontSize: Math.round(targetHeight * 0.045),
+            bold: true,
+            fontWeight: 'bold',
+            italic: false,
+            fontStyle: 'normal',
+            underline: false,
+            color: '#000000',
+            textAlign: 'center',
+            verticalAlign: 'middle',
+            autoResize: false,
+            wordWrap: false,
+            lockPosition: false,
+            layerOrder: 1,
+            visibility: true
+          },
+          {
+            id: 'field_college_' + Date.now(),
+            field: 'College Name',
+            linkedColumn: 'College Name',
+            type: 'text',
+            x: Math.round(targetWidth * 0.2),
+            y: Math.round(targetHeight * 0.56),
+            width: Math.round(targetWidth * 0.6),
+            height: Math.round(targetHeight * 0.06),
+            fontFamily: 'Inter',
+            fontSize: Math.round(targetHeight * 0.026),
+            minFontSize: 12,
+            maxFontSize: Math.round(targetHeight * 0.026),
+            bold: false,
+            fontWeight: 'normal',
+            italic: false,
+            fontStyle: 'normal',
+            underline: false,
+            color: '#334155',
+            textAlign: 'center',
+            verticalAlign: 'middle',
+            autoResize: false,
+            wordWrap: false,
+            lockPosition: false,
+            layerOrder: 2,
+            visibility: true
+          }
+        ]
       };
 
-      reader.onerror = () => reject(new Error(`Failed to read file "${file.name}".`));
-      reader.readAsDataURL(file);
-    });
+      return templateObj;
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
   }
 }
 

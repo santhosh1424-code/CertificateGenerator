@@ -432,6 +432,7 @@ class GeneratorEngine {
     } finally {
       window.appState.activeElementId = savedActiveElementId;
       this.isGenerating = false;
+      this.clearMemory();
     }
   }
 
@@ -619,19 +620,50 @@ class GeneratorEngine {
     return clean || 'Untitled';
   }
 
-  getCachedImage(src) {
+  async getCachedImage(src) {
     if (this.imageCache.has(src)) {
-      return Promise.resolve(this.imageCache.get(src));
+      return this.imageCache.get(src);
     }
-    return new Promise((res, rej) => {
-      const img = new Image();
-      img.onload = () => {
-        this.imageCache.set(src, img);
-        res(img);
-      };
-      img.onerror = (err) => rej(new Error('Failed to load template background image.'));
-      img.src = src;
+
+    let imgSource = null;
+
+    if (typeof createImageBitmap === 'function' && src && src.startsWith('data:')) {
+      try {
+        const res = await fetch(src);
+        const blob = await res.blob();
+        imgSource = await createImageBitmap(blob);
+      } catch (e) {
+        console.warn('[CertiGen Generator] createImageBitmap fallback to Image element:', e);
+      }
+    }
+
+    if (!imgSource) {
+      imgSource = new Image();
+      imgSource.src = src;
+      if (imgSource.decode) {
+        await imgSource.decode();
+      } else {
+        await new Promise((res, rej) => {
+          imgSource.onload = () => res();
+          imgSource.onerror = () => rej(new Error('Failed to load template background image.'));
+        });
+      }
+    }
+
+    this.imageCache.set(src, imgSource);
+    return imgSource;
+  }
+
+  clearMemory() {
+    if (this.sharedExportCanvas && this.sharedExportCtx) {
+      this.sharedExportCtx.clearRect(0, 0, this.sharedExportCanvas.width, this.sharedExportCanvas.height);
+    }
+    this.imageCache.forEach((img) => {
+      if (img && typeof img.close === 'function') {
+        img.close();
+      }
     });
+    this.imageCache.clear();
   }
 }
 
