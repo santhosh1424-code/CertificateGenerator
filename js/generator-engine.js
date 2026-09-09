@@ -1,5 +1,5 @@
 /* ==========================================================================
-   ENTERPRISE CERTIFICATE GENERATOR - HIGH PERFORMANCE BATCH ENGINE
+   ENTERPRISE CERTIFICATE GENERATOR - MEMORY-SAFE BATCH ENGINE
    ========================================================================== */
 
 class GeneratorEngine {
@@ -92,26 +92,6 @@ class GeneratorEngine {
       progressSvgCircle.setAttribute('stroke-dasharray', `${strokeDash}, 283`);
     }
 
-    if (actionGuidance) {
-      if (allPassed) {
-        actionGuidance.style.display = 'none';
-      } else {
-        actionGuidance.style.display = 'block';
-        actionGuidance.innerHTML = `
-          <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid var(--accent-danger); padding: 10px; border-radius: var(--radius-sm); margin-bottom: 12px;">
-            <strong style="color: var(--accent-danger); font-size: 0.8rem;">Action Required (${failedActions.length} check failed):</strong>
-            <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
-              ${failedActions.map(act => `
-                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('preflight-modal').classList.remove('active'); window.appController.switchView('${act.targetView}')">
-                  Fix ${act.label} →
-                </button>
-              `).join('')}
-            </div>
-          </div>
-        `;
-      }
-    }
-
     let totalRows = 0;
     let mainTplName = '—';
     let mainXlsName = '—';
@@ -127,6 +107,8 @@ class GeneratorEngine {
     const format = window.appState.settings.outputFormat || 'png';
     const estSizeMB = (totalRows * 0.6).toFixed(0);
     const estTimeSec = Math.max(1, Math.round(totalRows / 50));
+    const estRamMB = Math.min(250, Math.round(totalRows * 0.8));
+    const zipPartsCount = Math.ceil(totalRows / 200);
 
     const pfTpl = document.getElementById('pf-tpl-name');
     const pfXls = document.getElementById('pf-xls-name');
@@ -143,6 +125,38 @@ class GeneratorEngine {
     if (pfSize) pfSize.textContent = totalRows > 0 ? `~${estSizeMB} MB` : '0 MB';
     if (pfTime) pfTime.textContent = totalRows > 0 ? `~${estTimeSec} Seconds` : '0 Seconds';
     if (pfFmt) pfFmt.textContent = format.toUpperCase();
+
+    if (actionGuidance) {
+      if (allPassed) {
+        if (totalRows > 200) {
+          actionGuidance.style.display = 'block';
+          actionGuidance.innerHTML = `
+            <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--btn-primary); padding: 10px; border-radius: var(--radius-sm); margin-bottom: 12px; font-size: 0.82rem;">
+              <strong style="color: #60A5FA;">⚡ Large Batch Detected (${totalRows} records):</strong>
+              <div style="color: var(--text-muted); margin-top: 4px;">
+                Generation will run in <strong>${zipPartsCount} memory-safe volume archives</strong> (~200 records per volume) to prevent browser memory buffer limits (~${estRamMB} MB peak RAM).
+              </div>
+            </div>
+          `;
+        } else {
+          actionGuidance.style.display = 'none';
+        }
+      } else {
+        actionGuidance.style.display = 'block';
+        actionGuidance.innerHTML = `
+          <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid var(--accent-danger); padding: 10px; border-radius: var(--radius-sm); margin-bottom: 12px;">
+            <strong style="color: var(--accent-danger); font-size: 0.8rem;">Action Required (${failedActions.length} check failed):</strong>
+            <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
+              ${failedActions.map(act => `
+                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('preflight-modal').classList.remove('active'); window.appController.switchView('${act.targetView}')">
+                  Fix ${act.label} →
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+    }
 
     if (badgeEl) {
       badgeEl.textContent = allPassed ? '100% Ready' : `${scorePct}% Action Required`;
@@ -162,6 +176,40 @@ class GeneratorEngine {
     });
 
     modal.classList.add('active');
+  }
+
+  pauseGeneration() {
+    if (this.isGenerating && !this.isPaused) {
+      this.isPaused = true;
+      console.log('[CertiGen Generator] Generation paused.');
+      window.appState.notify('generation_paused', { current: this.processedRecords, total: this.totalRecords });
+    }
+  }
+
+  resumeGeneration() {
+    if (this.isGenerating && this.isPaused) {
+      this.isPaused = false;
+      console.log('[CertiGen Generator] Generation resumed.');
+      window.appState.notify('generation_resumed', { current: this.processedRecords, total: this.totalRecords });
+    }
+  }
+
+  togglePauseResume() {
+    if (this.isPaused) {
+      this.resumeGeneration();
+    } else {
+      this.pauseGeneration();
+    }
+  }
+
+  cancelGeneration() {
+    if (this.isGenerating) {
+      this.isCancelled = true;
+      this.isGenerating = false;
+      this.isPaused = false;
+      console.log('[CertiGen Generator] Generation cancelled by user.');
+      window.appState.notify('generation_cancelled', { current: this.processedRecords, total: this.totalRecords });
+    }
   }
 
   async executeGenerationFromPreflight() {
@@ -187,64 +235,207 @@ class GeneratorEngine {
     this.generatedExampleNames = [];
     this.startTime = Date.now();
 
+    // Memory Architecture: One single canvas created ONCE and reused for every single certificate
     if (!this.sharedExportCanvas) {
       this.sharedExportCanvas = document.createElement('canvas');
       this.sharedExportCtx = this.sharedExportCanvas.getContext('2d');
     }
 
-    this.totalRecords = lockedPairs.reduce((acc, pair) => acc + (pair.excel.rows ? pair.excel.rows.length : 0), 0);
-    console.log(`[CertiGen Generator] Starting hyper-fast generation for ${this.totalRecords} total record(s).`);
+    // Expand all pair records into a flat execution queue
+    const queue = [];
+    lockedPairs.forEach(pair => {
+      const rows = pair.excel.rows || [];
+      rows.forEach((rowRecord, idx) => {
+        queue.push({
+          excelObj: pair.excel,
+          template: pair.template,
+          record: rowRecord,
+          recordIdxInSheet: idx
+        });
+      });
+    });
+
+    this.totalRecords = queue.length;
+    console.log(`[CertiGen Generator] Starting memory-safe generation for ${this.totalRecords} total record(s).`);
+
+    if (this.totalRecords === 0) {
+      alert('No data rows found to generate certificates.');
+      this.isGenerating = false;
+      return;
+    }
 
     window.appState.notify('generation_started', { total: this.totalRecords });
 
-    const zip = new JSZip();
+    // Capping max records per ZIP archive volume to 200 records to prevent ArrayBuffer allocation limits in browser V8 heap
+    const maxRecordsPerVolume = 200;
+    const totalVolumes = Math.ceil(this.totalRecords / maxRecordsPerVolume);
+    const baseZipName = window.appState.settings.defaultZipName || 'Certificates.zip';
+
+    const usedFilenamesSet = new Set();
+    let totalGeneratedZipBytes = 0;
 
     try {
-      for (let pIdx = 0; pIdx < lockedPairs.length; pIdx++) {
+      for (let v = 0; v < totalVolumes; v++) {
         if (this.isCancelled) break;
 
-        const pair = lockedPairs[pIdx];
-        const excelObj = pair.excel;
-        const template = pair.template;
+        const volumeStart = v * maxRecordsPerVolume;
+        const volumeEnd = Math.min(this.totalRecords, (v + 1) * maxRecordsPerVolume);
+        const volumeQueue = queue.slice(volumeStart, volumeEnd);
 
-        const templateFolder = this.sanitizeName(template.name.replace(/\.[^/.]+$/, ""), 40);
+        const volumeZip = new JSZip();
+        let volumeProcessedCount = 0;
 
-        await this.processSheetAndTemplate(excelObj, template, zip, templateFolder);
+        const chunkSize = 15;
+
+        for (let i = 0; i < volumeQueue.length; i += chunkSize) {
+          if (this.isCancelled) break;
+
+          while (this.isPaused && !this.isCancelled) {
+            await new Promise(r => setTimeout(r, 100));
+          }
+
+          const chunk = volumeQueue.slice(i, i + chunkSize);
+
+          for (let j = 0; j < chunk.length; j++) {
+            if (this.isCancelled) break;
+
+            const item = chunk[j];
+            const globalIdx = volumeStart + i + j;
+            const template = item.template;
+            const record = item.record;
+
+            try {
+              // Load & cache background image ONCE per template
+              const bgImg = await this.getCachedImage(template.dataUrl);
+
+              // Set canvas dimensions ONCE per template size
+              if (this.sharedExportCanvas.width !== template.width || this.sharedExportCanvas.height !== template.height) {
+                this.sharedExportCanvas.width = template.width;
+                this.sharedExportCanvas.height = template.height;
+              }
+
+              // Cache sorted fields
+              const fields = template.fields || [];
+              const sortedFields = [...fields].sort((a, b) => (a.layerOrder || 1) - (b.layerOrder || 1));
+
+              // Render single certificate onto shared canvas
+              this.renderFrameFast(this.sharedExportCtx, this.sharedExportCanvas, bgImg, sortedFields, record);
+
+              const format = window.appState.settings.outputFormat || 'png';
+              const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+
+              // Convert canvas directly to Blob (No toDataURL base64 strings!)
+              let blob = await new Promise((resolve) => {
+                this.sharedExportCanvas.toBlob((b) => resolve(b), mimeType, 0.95);
+              });
+
+              if (!blob || !(blob instanceof Blob) || blob.size === 0) {
+                console.error(`[CertiGen Generator] Record #${globalIdx + 1} rendering failed. Skipping record.`);
+                this.failedRecords++;
+                continue;
+              }
+
+              // Generate sanitized filename using Certificate Holder NAME
+              const filename = this.generateFilename(record, globalIdx, format, usedFilenamesSet, template);
+
+              // Shallow 2-level ZIP structure: Certificates/filename.png
+              const fullZipPath = `Certificates/${filename}`;
+
+              // Pass blob directly to JSZip and release local reference
+              volumeZip.file(fullZipPath, blob);
+              blob = null;
+
+              this.processedRecords++;
+              volumeProcessedCount++;
+
+              if (this.generatedExampleNames.length < 10) {
+                this.generatedExampleNames.push(filename);
+              }
+            } catch (err) {
+              console.error(`[CertiGen Generator] Error rendering record #${globalIdx + 1}:`, err);
+              this.failedRecords++;
+            }
+
+            // Throttle progress UI updates every 5 records to prevent layout reflow thrashing
+            if (this.processedRecords % 5 === 0 || this.processedRecords === this.totalRecords) {
+              const elapsed = (Date.now() - this.startTime) / 1000;
+              const speed = (this.processedRecords / Math.max(elapsed, 0.1)).toFixed(1);
+              const remainingSecs = Math.round((this.totalRecords - this.processedRecords) / Math.max(parseFloat(speed), 0.1));
+
+              const volStatus = totalVolumes > 1 ? ` (Volume ${v + 1} of ${totalVolumes})` : '';
+
+              window.appState.notify('generation_progress', {
+                current: this.processedRecords,
+                total: this.totalRecords,
+                currentFile: item.excelObj.name,
+                currentTemplate: template.name,
+                currentRecord: record.Name || record.Student || `Record #${globalIdx + 1}`,
+                speed: speed,
+                elapsed: elapsed,
+                eta: remainingSecs,
+                status: `Generating certificates...${volStatus}`
+              });
+            }
+          }
+
+          // Asynchronous batch yield to browser event loop
+          await new Promise(res => setTimeout(res, 0));
+        }
+
+        if (this.isCancelled) break;
+
+        // Compile Volume ZIP only if processed records exist in this volume
+        if (volumeProcessedCount > 0) {
+          console.log(`[CertiGen Generator] Packaging Volume ${v + 1} of ${totalVolumes} into ZIP archive...`);
+
+          window.appState.notify('generation_progress', {
+            current: this.processedRecords,
+            total: this.totalRecords,
+            status: totalVolumes > 1 ? `Packaging Volume ${v + 1} of ${totalVolumes}...` : 'Packaging ZIP archive...'
+          });
+
+          // Compile volume ZIP archive in STORE mode for instant compilation
+          let volumeZipBlob = await volumeZip.generateAsync({
+            type: "blob",
+            compression: "STORE"
+          });
+
+          if (!volumeZipBlob || !(volumeZipBlob instanceof Blob) || volumeZipBlob.size === 0) {
+            throw new Error(`Volume ${v + 1} ZIP compilation failed: Generated ZIP blob is invalid or 0 bytes.`);
+          }
+
+          totalGeneratedZipBytes += volumeZipBlob.size;
+
+          let volumeZipFilename = baseZipName;
+          if (totalVolumes > 1) {
+            const extIdx = baseZipName.lastIndexOf('.');
+            const base = extIdx > 0 ? baseZipName.substring(0, extIdx) : 'Certificates';
+            const ext = extIdx > 0 ? baseZipName.substring(extIdx) : '.zip';
+            volumeZipFilename = `${base}_Part${v + 1}_of_${totalVolumes}${ext}`;
+          }
+
+          this.latestZipBlob = volumeZipBlob;
+          this.latestZipFilename = volumeZipFilename;
+
+          // Trigger immediate download of the volume archive
+          saveAs(volumeZipBlob, volumeZipFilename);
+
+          // Clear volume references and yield for V8 Garbage Collection
+          volumeZipBlob = null;
+          await new Promise(res => setTimeout(res, 250));
+        }
       }
 
       if (!this.isCancelled) {
-        console.log('[CertiGen Generator] Packaging certificates instantly into ZIP archive...');
-        window.appState.notify('generation_progress', {
-          current: this.totalRecords,
-          total: this.totalRecords,
-          status: 'Packaging ZIP archive instantly...'
-        });
-
         if (this.processedRecords === 0) {
           alert('No certificates were generated. Please check rendering and try again.');
           return;
         }
 
-        const zipFilename = window.appState.settings.defaultZipName || 'Certificates.zip';
-        this.latestZipFilename = zipFilename;
-
-        // HIGH PERFORMANCE OPTIMIZATION:
-        // Use STORE mode for pre-compressed PNG/JPEG files.
-        // Eliminates redundant CPU-heavy JSZip deflate re-compression, making ZIP compilation instant (100x speedup).
-        const zipBlob = await zip.generateAsync({
-          type: "blob",
-          compression: "STORE"
-        });
-
-        if (!zipBlob || !(zipBlob instanceof Blob) || zipBlob.size === 0) {
-          throw new Error('ZIP compilation failed: Generated ZIP blob is invalid or 0 bytes.');
-        }
-
-        this.latestZipBlob = zipBlob;
-        const zipSizeMB = (zipBlob.size / (1024 * 1024)).toFixed(2);
+        const totalZipSizeMB = (totalGeneratedZipBytes / (1024 * 1024)).toFixed(2);
         const duration = ((Date.now() - this.startTime) / 1000).toFixed(1);
 
-        console.log(`[CertiGen Generator] Hyper-fast generation completed in ${duration} seconds!`);
+        console.log(`[CertiGen Generator] Memory-safe bulk generation completed successfully in ${duration} seconds!`);
 
         window.appState.notify('generation_completed', {
           total: this.totalRecords,
@@ -252,12 +443,10 @@ class GeneratorEngine {
           skipped: this.skippedRecords,
           failed: this.failedRecords,
           duration: duration,
-          zipSize: `${zipSizeMB} MB`
+          zipSize: `${totalZipSizeMB} MB`
         });
 
-        saveAs(zipBlob, zipFilename);
-
-        this.showSummaryReportModal(zipSizeMB, duration);
+        this.showSummaryReportModal(totalZipSizeMB, duration);
       }
     } catch (err) {
       console.error('[CertiGen Generator] Execution Error:', err);
@@ -340,89 +529,6 @@ class GeneratorEngine {
     };
   }
 
-  async processSheetAndTemplate(excelObj, template, zip, templateFolder) {
-    const rows = excelObj.rows || [];
-    const bgImg = await this.getCachedImage(template.dataUrl);
-
-    this.sharedExportCanvas.width = template.width;
-    this.sharedExportCanvas.height = template.height;
-    const ctx = this.sharedExportCtx;
-
-    const usedFilenamesSet = new Set();
-    const chunkSize = 50;
-
-    // Cache sorted fields once per template to eliminate array sorting overhead per frame
-    const fields = template.fields || [];
-    const sortedFields = [...fields].sort((a, b) => (a.layerOrder || 1) - (b.layerOrder || 1));
-
-    for (let i = 0; i < rows.length; i += chunkSize) {
-      if (this.isCancelled) break;
-
-      while (this.isPaused && !this.isCancelled) {
-        await new Promise(r => setTimeout(r, 100));
-      }
-
-      const chunk = rows.slice(i, i + chunkSize);
-      for (let j = 0; j < chunk.length; j++) {
-        if (this.isCancelled) break;
-
-        const record = chunk[j];
-        const recordIdx = i + j;
-
-        try {
-          this.renderFrameFast(ctx, this.sharedExportCanvas, bgImg, sortedFields, record);
-
-          const format = window.appState.settings.outputFormat || 'png';
-          const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
-
-          let blob = await new Promise((resolve) => {
-            this.sharedExportCanvas.toBlob((b) => resolve(b), mimeType, 0.95);
-          });
-
-          if (!blob || !(blob instanceof Blob) || blob.size === 0) {
-            console.error(`[CertiGen Generator] Record #${recordIdx + 1} rendering failed. Skipping record.`);
-            this.failedRecords++;
-            continue;
-          }
-
-          const filename = this.generateFilename(record, recordIdx, format, usedFilenamesSet, template);
-          const fullZipPath = `Certificates/${templateFolder}/${filename}`;
-
-          zip.file(fullZipPath, blob);
-          blob = null;
-
-          this.processedRecords++;
-          if (this.generatedExampleNames.length < 10) {
-            this.generatedExampleNames.push(filename);
-          }
-        } catch (err) {
-          console.error(`[CertiGen Generator] Error rendering record #${recordIdx + 1}:`, err);
-          this.failedRecords++;
-        }
-
-        // Throttle progress notifications to run every 5 records or on the last record to prevent DOM reflow thrashing
-        if (this.processedRecords % 5 === 0 || this.processedRecords === this.totalRecords) {
-          const elapsed = (Date.now() - this.startTime) / 1000;
-          const speed = (this.processedRecords / Math.max(elapsed, 0.1)).toFixed(1);
-          const remainingSecs = Math.round((this.totalRecords - this.processedRecords) / Math.max(parseFloat(speed), 0.1));
-
-          window.appState.notify('generation_progress', {
-            current: this.processedRecords,
-            total: this.totalRecords,
-            currentFile: excelObj.name,
-            currentTemplate: template.name,
-            currentRecord: record.Name || record.Student || `Record #${recordIdx + 1}`,
-            speed: speed,
-            elapsed: elapsed,
-            eta: remainingSecs
-          });
-        }
-      }
-
-      await new Promise(res => setTimeout(res, 0));
-    }
-  }
-
   renderFrameFast(ctx, canvas, bgImg, sortedFields, record) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
@@ -460,7 +566,7 @@ class GeneratorEngine {
 
     let collegeValue = (collegeKey && record[collegeKey] !== undefined) ? String(record[collegeKey]).trim() : '';
 
-    if (!collegeValue) {
+    if (!collegeValue && namingPattern.includes('{College}')) {
       for (const [k, v] of Object.entries(record || {})) {
         if (k !== nameKey && typeof v === 'string' && v.trim().length > 2 && /college|institute|university|academy|school|engineering|technology|polytechnic|arts/i.test(v)) {
           collegeValue = v.trim();
@@ -503,7 +609,7 @@ class GeneratorEngine {
       baseName = nameValue || `Certificate_${String(recordIdx + 1).padStart(3, '0')}`;
     }
 
-    let sanitized = this.sanitizeName(baseName, 120);
+    let sanitized = this.sanitizeName(baseName, 80);
     if (!sanitized) {
       sanitized = `Certificate_${String(recordIdx + 1).padStart(3, '0')}`;
     }
@@ -520,7 +626,7 @@ class GeneratorEngine {
     return finalFilename;
   }
 
-  sanitizeName(str, maxLen = 120) {
+  sanitizeName(str, maxLen = 80) {
     if (!str) return 'Untitled';
     let clean = String(str).replace(/[\/\?:*?"<>|\\]/g, ' ').replace(/\s+/g, ' ').trim();
     if (clean.length > maxLen) {

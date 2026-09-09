@@ -45,6 +45,11 @@ class ProgressManager {
         this.onCompleted(data);
       } else if (event === 'generation_failed') {
         this.onFailed(data);
+      } else if (event === 'generation_cancelled') {
+        if (this.statusText) this.statusText.textContent = 'Generation Cancelled.';
+        setTimeout(() => {
+          this.hideModal();
+        }, 1000);
       }
     });
   }
