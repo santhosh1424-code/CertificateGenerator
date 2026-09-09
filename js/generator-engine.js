@@ -302,10 +302,20 @@ class GeneratorEngine {
             // Load & cache background image ONCE per template
             const bgImg = await this.getCachedImage(template.dataUrl);
 
-            // Set canvas dimensions ONCE per template size
-            if (this.sharedExportCanvas.width !== template.width || this.sharedExportCanvas.height !== template.height) {
-              this.sharedExportCanvas.width = template.width;
-              this.sharedExportCanvas.height = template.height;
+            // Cap export canvas dimensions to A4 300 DPI standard (3508px max) to prevent browser V8 memory allocation crashes
+            const MAX_SAFE_DIM = 3508;
+            let exportWidth = template.width || 1920;
+            let exportHeight = template.height || 1080;
+
+            if (exportWidth > MAX_SAFE_DIM || exportHeight > MAX_SAFE_DIM) {
+              const scale = Math.min(MAX_SAFE_DIM / exportWidth, MAX_SAFE_DIM / exportHeight, 1.0);
+              exportWidth = Math.round(exportWidth * scale);
+              exportHeight = Math.round(exportHeight * scale);
+            }
+
+            if (this.sharedExportCanvas.width !== exportWidth || this.sharedExportCanvas.height !== exportHeight) {
+              this.sharedExportCanvas.width = exportWidth;
+              this.sharedExportCanvas.height = exportHeight;
             }
 
             // Cache sorted fields
@@ -313,7 +323,7 @@ class GeneratorEngine {
             const sortedFields = [...fields].sort((a, b) => (a.layerOrder || 1) - (b.layerOrder || 1));
 
             // Render single certificate onto shared canvas
-            this.renderFrameFast(this.sharedExportCtx, this.sharedExportCanvas, bgImg, sortedFields, record);
+            this.renderFrameFast(this.sharedExportCtx, this.sharedExportCanvas, bgImg, sortedFields, record, template);
 
             const format = window.appState.settings.outputFormat || 'png';
             const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
@@ -509,14 +519,34 @@ class GeneratorEngine {
     };
   }
 
-  renderFrameFast(ctx, canvas, bgImg, sortedFields, record) {
+  renderFrameFast(ctx, canvas, bgImg, sortedFields, record, template) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+
+    const tplW = (template && template.width) ? template.width : canvas.width;
+    const tplH = (template && template.height) ? template.height : canvas.height;
+    const scaleX = canvas.width / tplW;
+    const scaleY = canvas.height / tplH;
+    const isScaled = Math.abs(scaleX - 1.0) > 0.001 || Math.abs(scaleY - 1.0) > 0.001;
 
     for (let f = 0; f < sortedFields.length; f++) {
       const field = sortedFields[f];
       if (field.visibility === false) continue;
-      window.canvasEditor.renderSmartObject(ctx, field, record, true);
+
+      let targetField = field;
+      if (isScaled) {
+        targetField = Object.assign({}, field, {
+          x: Math.round(field.x * scaleX),
+          y: Math.round(field.y * scaleY),
+          width: Math.round(field.width * scaleX),
+          height: Math.round(field.height * scaleY),
+          fontSize: Math.round(field.fontSize * scaleY),
+          minFontSize: field.minFontSize ? Math.round(field.minFontSize * scaleY) : Math.round(8 * scaleY),
+          maxFontSize: field.maxFontSize ? Math.round(field.maxFontSize * scaleY) : Math.round(field.fontSize * scaleY)
+        });
+      }
+
+      window.canvasEditor.renderSmartObject(ctx, targetField, record, true);
     }
   }
 
