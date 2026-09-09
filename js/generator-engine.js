@@ -332,8 +332,8 @@ class GeneratorEngine {
             // Generate sanitized filename using Certificate Holder NAME
             const filename = this.generateFilename(record, globalIdx, format, usedFilenamesSet, template);
 
-            // Add Blob directly to the Certificates/ folder in the SINGLE JSZip instance
-            certificatesFolder.file(filename, blob);
+            // Add Blob directly to the Certificates/ folder in the SINGLE JSZip instance using binary mode
+            certificatesFolder.file(filename, blob, { binary: true });
             blob = null;
 
             this.processedRecords++;
@@ -384,10 +384,11 @@ class GeneratorEngine {
           status: 'Compiling final Certificates.zip archive...'
         });
 
-        // Compile single ZIP archive in STORE mode for instant zero-overhead packaging
+        // Compile single ZIP archive in STORE mode with streamFiles enabled for ultra-low RAM footprint
         const zipBlob = await zip.generateAsync({
           type: "blob",
-          compression: "STORE"
+          compression: "STORE",
+          streamFiles: true
         }, (metadata) => {
           if (metadata.percent) {
             window.appState.notify('generation_progress', {
