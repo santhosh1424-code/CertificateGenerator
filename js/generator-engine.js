@@ -1,5 +1,5 @@
 /* ==========================================================================
-   ENTERPRISE CERTIFICATE GENERATOR - MEMORY-SAFE BATCH ENGINE
+   ENTERPRISE CERTIFICATE GENERATOR - HIGH-THROUGHPUT SINGLE ZIP ENGINE
    ========================================================================== */
 
 class GeneratorEngine {
@@ -107,8 +107,6 @@ class GeneratorEngine {
     const format = window.appState.settings.outputFormat || 'png';
     const estSizeMB = (totalRows * 0.6).toFixed(0);
     const estTimeSec = Math.max(1, Math.round(totalRows / 50));
-    const estRamMB = Math.min(250, Math.round(totalRows * 0.8));
-    const zipPartsCount = Math.ceil(totalRows / 200);
 
     const pfTpl = document.getElementById('pf-tpl-name');
     const pfXls = document.getElementById('pf-xls-name');
@@ -132,9 +130,9 @@ class GeneratorEngine {
           actionGuidance.style.display = 'block';
           actionGuidance.innerHTML = `
             <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--btn-primary); padding: 10px; border-radius: var(--radius-sm); margin-bottom: 12px; font-size: 0.82rem;">
-              <strong style="color: #60A5FA;">⚡ Large Batch Detected (${totalRows} records):</strong>
+              <strong style="color: #60A5FA;">⚡ Bulk Batch Detected (${totalRows} records):</strong>
               <div style="color: var(--text-muted); margin-top: 4px;">
-                Generation will run in <strong>${zipPartsCount} memory-safe volume archives</strong> (~200 records per volume) to prevent browser memory buffer limits (~${estRamMB} MB peak RAM).
+                All <strong>${totalRows} certificates</strong> will be packaged into <strong>1 single Certificates.zip archive</strong> inside the <strong>Certificates/</strong> root folder.
               </div>
             </div>
           `;
@@ -202,6 +200,10 @@ class GeneratorEngine {
     }
   }
 
+  togglePause() {
+    this.togglePauseResume();
+  }
+
   cancelGeneration() {
     if (this.isGenerating) {
       this.isCancelled = true;
@@ -210,6 +212,10 @@ class GeneratorEngine {
       console.log('[CertiGen Generator] Generation cancelled by user.');
       window.appState.notify('generation_cancelled', { current: this.processedRecords, total: this.totalRecords });
     }
+  }
+
+  cancel() {
+    this.cancelGeneration();
   }
 
   async executeGenerationFromPreflight() {
@@ -256,7 +262,7 @@ class GeneratorEngine {
     });
 
     this.totalRecords = queue.length;
-    console.log(`[CertiGen Generator] Starting memory-safe generation for ${this.totalRecords} total record(s).`);
+    console.log(`[CertiGen Generator] Starting single ZIP generation for ${this.totalRecords} total record(s).`);
 
     if (this.totalRecords === 0) {
       alert('No data rows found to generate certificates.');
@@ -266,164 +272,102 @@ class GeneratorEngine {
 
     window.appState.notify('generation_started', { total: this.totalRecords });
 
-    // Capping max records per ZIP archive volume to 200 records to prevent ArrayBuffer allocation limits in browser V8 heap
-    const maxRecordsPerVolume = 200;
-    const totalVolumes = Math.ceil(this.totalRecords / maxRecordsPerVolume);
-    const baseZipName = window.appState.settings.defaultZipName || 'Certificates.zip';
-
+    // EXACTLY ONE JSZip INSTANCE FOR THE ENTIRE GENERATION RUN
+    const zip = new JSZip();
+    const certificatesFolder = zip.folder("Certificates");
     const usedFilenamesSet = new Set();
-    let totalGeneratedZipBytes = 0;
+    const zipFilename = (window.appState.settings && window.appState.settings.defaultZipName) || 'Certificates.zip';
 
     try {
-      for (let v = 0; v < totalVolumes; v++) {
+      const chunkSize = 15; // Process records in small chunks to keep browser UI smooth and responsive
+
+      for (let i = 0; i < queue.length; i += chunkSize) {
         if (this.isCancelled) break;
 
-        const volumeStart = v * maxRecordsPerVolume;
-        const volumeEnd = Math.min(this.totalRecords, (v + 1) * maxRecordsPerVolume);
-        const volumeQueue = queue.slice(volumeStart, volumeEnd);
+        while (this.isPaused && !this.isCancelled) {
+          await new Promise(r => setTimeout(r, 100));
+        }
 
-        const volumeZip = new JSZip();
-        let volumeProcessedCount = 0;
+        const chunk = queue.slice(i, i + chunkSize);
 
-        const chunkSize = 15;
-
-        for (let i = 0; i < volumeQueue.length; i += chunkSize) {
+        for (let j = 0; j < chunk.length; j++) {
           if (this.isCancelled) break;
 
-          while (this.isPaused && !this.isCancelled) {
-            await new Promise(r => setTimeout(r, 100));
-          }
+          const item = chunk[j];
+          const globalIdx = i + j;
+          const template = item.template;
+          const record = item.record;
 
-          const chunk = volumeQueue.slice(i, i + chunkSize);
+          try {
+            // Load & cache background image ONCE per template
+            const bgImg = await this.getCachedImage(template.dataUrl);
 
-          for (let j = 0; j < chunk.length; j++) {
-            if (this.isCancelled) break;
+            // Set canvas dimensions ONCE per template size
+            if (this.sharedExportCanvas.width !== template.width || this.sharedExportCanvas.height !== template.height) {
+              this.sharedExportCanvas.width = template.width;
+              this.sharedExportCanvas.height = template.height;
+            }
 
-            const item = chunk[j];
-            const globalIdx = volumeStart + i + j;
-            const template = item.template;
-            const record = item.record;
+            // Cache sorted fields
+            const fields = template.fields || [];
+            const sortedFields = [...fields].sort((a, b) => (a.layerOrder || 1) - (b.layerOrder || 1));
 
-            try {
-              // Load & cache background image ONCE per template
-              const bgImg = await this.getCachedImage(template.dataUrl);
+            // Render single certificate onto shared canvas
+            this.renderFrameFast(this.sharedExportCtx, this.sharedExportCanvas, bgImg, sortedFields, record);
 
-              // Set canvas dimensions ONCE per template size
-              if (this.sharedExportCanvas.width !== template.width || this.sharedExportCanvas.height !== template.height) {
-                this.sharedExportCanvas.width = template.width;
-                this.sharedExportCanvas.height = template.height;
-              }
+            const format = window.appState.settings.outputFormat || 'png';
+            const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
 
-              // Cache sorted fields
-              const fields = template.fields || [];
-              const sortedFields = [...fields].sort((a, b) => (a.layerOrder || 1) - (b.layerOrder || 1));
+            // Convert canvas directly to Blob (No toDataURL base64 strings!)
+            let blob = await new Promise((resolve) => {
+              this.sharedExportCanvas.toBlob((b) => resolve(b), mimeType, 0.95);
+            });
 
-              // Render single certificate onto shared canvas
-              this.renderFrameFast(this.sharedExportCtx, this.sharedExportCanvas, bgImg, sortedFields, record);
-
-              const format = window.appState.settings.outputFormat || 'png';
-              const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
-
-              // Convert canvas directly to Blob (No toDataURL base64 strings!)
-              let blob = await new Promise((resolve) => {
-                this.sharedExportCanvas.toBlob((b) => resolve(b), mimeType, 0.95);
-              });
-
-              if (!blob || !(blob instanceof Blob) || blob.size === 0) {
-                console.error(`[CertiGen Generator] Record #${globalIdx + 1} rendering failed. Skipping record.`);
-                this.failedRecords++;
-                continue;
-              }
-
-              // Generate sanitized filename using Certificate Holder NAME
-              const filename = this.generateFilename(record, globalIdx, format, usedFilenamesSet, template);
-
-              // Shallow 2-level ZIP structure: Certificates/filename.png
-              const fullZipPath = `Certificates/${filename}`;
-
-              // Pass blob directly to JSZip and release local reference
-              volumeZip.file(fullZipPath, blob);
-              blob = null;
-
-              this.processedRecords++;
-              volumeProcessedCount++;
-
-              if (this.generatedExampleNames.length < 10) {
-                this.generatedExampleNames.push(filename);
-              }
-            } catch (err) {
-              console.error(`[CertiGen Generator] Error rendering record #${globalIdx + 1}:`, err);
+            if (!blob || (blob.size === undefined && blob.length === undefined) || (blob.size === 0 && blob.length === 0)) {
+              console.error(`[CertiGen Generator] Record #${globalIdx + 1} rendering failed. Skipping record.`);
               this.failedRecords++;
+              continue;
             }
 
-            // Throttle progress UI updates every 5 records to prevent layout reflow thrashing
-            if (this.processedRecords % 5 === 0 || this.processedRecords === this.totalRecords) {
-              const elapsed = (Date.now() - this.startTime) / 1000;
-              const speed = (this.processedRecords / Math.max(elapsed, 0.1)).toFixed(1);
-              const remainingSecs = Math.round((this.totalRecords - this.processedRecords) / Math.max(parseFloat(speed), 0.1));
+            // Generate sanitized filename using Certificate Holder NAME
+            const filename = this.generateFilename(record, globalIdx, format, usedFilenamesSet, template);
 
-              const volStatus = totalVolumes > 1 ? ` (Volume ${v + 1} of ${totalVolumes})` : '';
+            // Add Blob directly to the Certificates/ folder in the SINGLE JSZip instance
+            certificatesFolder.file(filename, blob);
+            blob = null;
 
-              window.appState.notify('generation_progress', {
-                current: this.processedRecords,
-                total: this.totalRecords,
-                currentFile: item.excelObj.name,
-                currentTemplate: template.name,
-                currentRecord: record.Name || record.Student || `Record #${globalIdx + 1}`,
-                speed: speed,
-                elapsed: elapsed,
-                eta: remainingSecs,
-                status: `Generating certificates...${volStatus}`
-              });
+            this.processedRecords++;
+
+            if (this.generatedExampleNames.length < 10) {
+              this.generatedExampleNames.push(filename);
             }
+          } catch (err) {
+            console.error(`[CertiGen Generator] Error rendering record #${globalIdx + 1}:`, err);
+            this.failedRecords++;
           }
 
-          // Asynchronous batch yield to browser event loop
-          await new Promise(res => setTimeout(res, 0));
+          // Throttle progress UI updates every 5 records to prevent DOM reflow thrashing
+          if (this.processedRecords % 5 === 0 || this.processedRecords === this.totalRecords) {
+            const elapsed = (Date.now() - this.startTime) / 1000;
+            const speed = (this.processedRecords / Math.max(elapsed, 0.1)).toFixed(1);
+            const remainingSecs = Math.round((this.totalRecords - this.processedRecords) / Math.max(parseFloat(speed), 0.1));
+
+            window.appState.notify('generation_progress', {
+              current: this.processedRecords,
+              total: this.totalRecords,
+              currentFile: item.excelObj.name,
+              currentTemplate: template.name,
+              currentRecord: record.Name || record.Student || `Record #${globalIdx + 1}`,
+              speed: speed,
+              elapsed: elapsed,
+              eta: remainingSecs,
+              status: `Rendering certificates (${this.processedRecords}/${this.totalRecords})...`
+            });
+          }
         }
 
-        if (this.isCancelled) break;
-
-        // Compile Volume ZIP only if processed records exist in this volume
-        if (volumeProcessedCount > 0) {
-          console.log(`[CertiGen Generator] Packaging Volume ${v + 1} of ${totalVolumes} into ZIP archive...`);
-
-          window.appState.notify('generation_progress', {
-            current: this.processedRecords,
-            total: this.totalRecords,
-            status: totalVolumes > 1 ? `Packaging Volume ${v + 1} of ${totalVolumes}...` : 'Packaging ZIP archive...'
-          });
-
-          // Compile volume ZIP archive in STORE mode for instant compilation
-          let volumeZipBlob = await volumeZip.generateAsync({
-            type: "blob",
-            compression: "STORE"
-          });
-
-          if (!volumeZipBlob || !(volumeZipBlob instanceof Blob) || volumeZipBlob.size === 0) {
-            throw new Error(`Volume ${v + 1} ZIP compilation failed: Generated ZIP blob is invalid or 0 bytes.`);
-          }
-
-          totalGeneratedZipBytes += volumeZipBlob.size;
-
-          let volumeZipFilename = baseZipName;
-          if (totalVolumes > 1) {
-            const extIdx = baseZipName.lastIndexOf('.');
-            const base = extIdx > 0 ? baseZipName.substring(0, extIdx) : 'Certificates';
-            const ext = extIdx > 0 ? baseZipName.substring(extIdx) : '.zip';
-            volumeZipFilename = `${base}_Part${v + 1}_of_${totalVolumes}${ext}`;
-          }
-
-          this.latestZipBlob = volumeZipBlob;
-          this.latestZipFilename = volumeZipFilename;
-
-          // Trigger immediate download of the volume archive
-          saveAs(volumeZipBlob, volumeZipFilename);
-
-          // Clear volume references and yield for V8 Garbage Collection
-          volumeZipBlob = null;
-          await new Promise(res => setTimeout(res, 250));
-        }
+        // Asynchronous batch yield to browser event loop for GC & UI rendering
+        await new Promise(res => setTimeout(res, 0));
       }
 
       if (!this.isCancelled) {
@@ -432,10 +376,39 @@ class GeneratorEngine {
           return;
         }
 
-        const totalZipSizeMB = (totalGeneratedZipBytes / (1024 * 1024)).toFixed(2);
+        console.log(`[CertiGen Generator] Packaging single ZIP archive for ${this.processedRecords} certificates...`);
+
+        window.appState.notify('generation_progress', {
+          current: this.processedRecords,
+          total: this.totalRecords,
+          status: 'Compiling final Certificates.zip archive...'
+        });
+
+        // Compile single ZIP archive in STORE mode for instant zero-overhead packaging
+        const zipBlob = await zip.generateAsync({
+          type: "blob",
+          compression: "STORE"
+        }, (metadata) => {
+          if (metadata.percent) {
+            window.appState.notify('generation_progress', {
+              current: this.processedRecords,
+              total: this.totalRecords,
+              status: `Packaging final ZIP archive: ${Math.round(metadata.percent)}%`
+            });
+          }
+        });
+
+        if (!zipBlob || !(zipBlob instanceof Blob) || zipBlob.size === 0) {
+          throw new Error('ZIP compilation failed: Generated ZIP blob is invalid or 0 bytes.');
+        }
+
+        this.latestZipBlob = zipBlob;
+        this.latestZipFilename = zipFilename;
+
+        const totalZipSizeMB = (zipBlob.size / (1024 * 1024)).toFixed(2);
         const duration = ((Date.now() - this.startTime) / 1000).toFixed(1);
 
-        console.log(`[CertiGen Generator] Memory-safe bulk generation completed successfully in ${duration} seconds!`);
+        console.log(`[CertiGen Generator] Single ZIP bulk generation completed successfully in ${duration}s! Size: ${totalZipSizeMB} MB.`);
 
         window.appState.notify('generation_completed', {
           total: this.totalRecords,
@@ -445,6 +418,9 @@ class GeneratorEngine {
           duration: duration,
           zipSize: `${totalZipSizeMB} MB`
         });
+
+        // Trigger single download for Certificates.zip
+        saveAs(zipBlob, zipFilename);
 
         this.showSummaryReportModal(totalZipSizeMB, duration);
       }
@@ -459,7 +435,9 @@ class GeneratorEngine {
   }
 
   showSummaryReportModal(zipSizeMB, duration) {
-    window.progressManager.hideModal();
+    if (window.progressManager && typeof window.progressManager.hideModal === 'function') {
+      window.progressManager.hideModal();
+    }
 
     const sumModal = document.getElementById('summary-modal');
     if (!sumModal) return;
@@ -628,7 +606,12 @@ class GeneratorEngine {
 
   sanitizeName(str, maxLen = 80) {
     if (!str) return 'Untitled';
-    let clean = String(str).replace(/[\/\?:*?"<>|\\]/g, ' ').replace(/\s+/g, ' ').trim();
+    let clean = String(str)
+      .replace(/[\/\\]/g, '-')
+      .replace(/[:*?"<>|]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/--+/g, '-')
+      .trim();
     if (clean.length > maxLen) {
       clean = clean.substring(0, maxLen).trim();
     }
