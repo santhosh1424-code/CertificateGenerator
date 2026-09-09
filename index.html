@@ -423,6 +423,78 @@
               <input type="checkbox" id="prop-lock" onchange="window.canvasEditor.saveActiveFieldProperty('lockPosition', this.checked)">
             </div>
 
+            <!-- Text Rotation / Angle Controls -->
+            <div class="prop-group" style="background: var(--bg-card); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); margin-top: 10px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label class="prop-label" style="margin: 0; font-weight: 700;">🔄 Text Angle / Rotation</label>
+                <span id="prop-rotation-display" style="font-size: 0.78rem; font-weight: 700; color: var(--btn-primary);">0°</span>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px;">
+                <input type="number" class="input-field" id="prop-rotation" min="-180" max="180" step="0.5" value="0" style="width: 80px;" oninput="window.canvasEditor.saveActiveFieldProperty('rotation', this.value)">
+                <input type="range" id="prop-rotation-slider" min="-45" max="45" step="0.5" value="0" style="flex: 1; cursor: pointer;" oninput="window.canvasEditor.saveActiveFieldProperty('rotation', this.value)">
+              </div>
+              <div style="display: flex; gap: 4px; justify-content: space-between;">
+                <button class="btn btn-secondary btn-sm" style="padding: 2px 6px; font-size: 0.72rem;" onclick="window.canvasEditor.rotateActiveElement(-5)">↺ -5°</button>
+                <button class="btn btn-secondary btn-sm" style="padding: 2px 6px; font-size: 0.72rem;" onclick="window.canvasEditor.rotateActiveElement(-1)">↺ -1°</button>
+                <button class="btn btn-secondary btn-sm" style="padding: 2px 6px; font-size: 0.72rem;" onclick="window.canvasEditor.saveActiveFieldProperty('rotation', 0)">0° Reset</button>
+                <button class="btn btn-secondary btn-sm" style="padding: 2px 6px; font-size: 0.72rem;" onclick="window.canvasEditor.rotateActiveElement(1)">↻ +1°</button>
+                <button class="btn btn-secondary btn-sm" style="padding: 2px 6px; font-size: 0.72rem;" onclick="window.canvasEditor.rotateActiveElement(5)">↻ +5°</button>
+              </div>
+            </div>
+
+            <!-- Letter Spacing Controls -->
+            <div class="prop-group" style="background: var(--bg-card); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); margin-top: 10px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label class="prop-label" style="margin: 0; font-weight: 700;">🔤 Letter Spacing (px)</label>
+                <span id="prop-letter-spacing-display" style="font-size: 0.78rem; font-weight: 700; color: var(--btn-primary);">0px</span>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px;">
+                <input type="number" class="input-field" id="prop-letter-spacing" min="-10" max="50" step="1" value="0" style="width: 80px;" oninput="window.canvasEditor.saveActiveFieldProperty('letterSpacing', this.value)">
+                <input type="range" id="prop-letter-spacing-slider" min="-10" max="30" step="1" value="0" style="flex: 1; cursor: pointer;" oninput="window.canvasEditor.saveActiveFieldProperty('letterSpacing', this.value)">
+              </div>
+              <div style="display: flex; gap: 4px; justify-content: space-between;">
+                <button class="btn btn-secondary btn-sm" style="padding: 2px 6px; font-size: 0.72rem;" onclick="window.canvasEditor.saveActiveFieldProperty('letterSpacing', -2)">-2px</button>
+                <button class="btn btn-secondary btn-sm" style="padding: 2px 6px; font-size: 0.72rem;" onclick="window.canvasEditor.saveActiveFieldProperty('letterSpacing', 0)">0px Reset</button>
+                <button class="btn btn-secondary btn-sm" style="padding: 2px 6px; font-size: 0.72rem;" onclick="window.canvasEditor.saveActiveFieldProperty('letterSpacing', 2)">+2px</button>
+                <button class="btn btn-secondary btn-sm" style="padding: 2px 6px; font-size: 0.72rem;" onclick="window.canvasEditor.saveActiveFieldProperty('letterSpacing', 5)">+5px</button>
+              </div>
+            </div>
+
+            <!-- Precision Micro-Nudge Card -->
+            <div style="background: var(--bg-card); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); margin-top: 10px;">
+              <div style="font-size: 0.85rem; font-weight: 700; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                <span>🎯 Precision Nudge Tool</span>
+                <div style="font-size: 0.72rem; display: flex; gap: 6px; align-items: center;">
+                  <label style="cursor: pointer;"><input type="radio" name="nudge-step" value="1" checked id="nudge-step-1"> 1px</label>
+                  <label style="cursor: pointer;"><input type="radio" name="nudge-step" value="5" id="nudge-step-5"> 5px</label>
+                </div>
+              </div>
+              
+              <div style="display: flex; justify-content: center; align-items: center; flex-direction: column; gap: 4px;">
+                <!-- D-Pad Top -->
+                <button class="btn btn-secondary btn-sm" style="width: 54px; height: 28px; padding: 0;" onclick="window.canvasEditor.nudgeActiveElement(0, -1)" title="Nudge Up">⬆️</button>
+                
+                <!-- D-Pad Middle -->
+                <div style="display: flex; gap: 6px; align-items: center;">
+                  <button class="btn btn-secondary btn-sm" style="width: 54px; height: 28px; padding: 0;" onclick="window.canvasEditor.nudgeActiveElement(-1, 0)" title="Nudge Left">⬅️</button>
+                  <div style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); width: 40px; text-align: center;">NUDGE</div>
+                  <button class="btn btn-secondary btn-sm" style="width: 54px; height: 28px; padding: 0;" onclick="window.canvasEditor.nudgeActiveElement(1, 0)" title="Nudge Right">➡️</button>
+                </div>
+                
+                <!-- D-Pad Bottom -->
+                <button class="btn btn-secondary btn-sm" style="width: 54px; height: 28px; padding: 0;" onclick="window.canvasEditor.nudgeActiveElement(0, 1)" title="Nudge Down">⬇️</button>
+              </div>
+
+              <!-- Font Size Fine Tuning -->
+              <div style="display: flex; gap: 6px; margin-top: 10px; align-items: center; justify-content: space-between;">
+                <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Font Size Fine-Tune:</span>
+                <div style="display: flex; gap: 4px;">
+                  <button class="btn btn-secondary btn-sm" style="padding: 2px 8px; font-size: 0.75rem;" onclick="window.canvasEditor.nudgeFontSize(-1)" title="Decrease Font Size 1px">A-</button>
+                  <button class="btn btn-secondary btn-sm" style="padding: 2px 8px; font-size: 0.75rem;" onclick="window.canvasEditor.nudgeFontSize(1)" title="Increase Font Size 1px">A+</button>
+                </div>
+              </div>
+            </div>
+
             <!-- Professional Template Lock System Card -->
             <div style="background: var(--bg-card); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); margin-top: 14px;">
               <div style="font-size: 0.85rem; font-weight: 700; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -691,18 +763,18 @@
   <div id="toast-container"></div>
 
   <!-- JS Modules (Cache-Busted for Production Stability) -->
-  <script src="js/state.js?v=1.0.16"></script>
-  <script src="js/storage.js?v=1.0.16"></script>
-  <script src="js/font-manager.js?v=1.0.16"></script>
-  <script src="js/template-manager.js?v=1.0.16"></script>
-  <script src="js/excel-manager.js?v=1.0.16"></script>
-  <script src="js/auto-mapper.js?v=1.0.16"></script>
-  <script src="js/canvas-editor.js?v=1.0.16"></script>
-  <script src="js/generator-engine.js?v=1.0.16"></script>
-  <script src="js/progress-manager.js?v=1.0.16"></script>
-  <script src="js/reports-manager.js?v=1.0.16"></script>
-  <script src="js/config-manager.js?v=1.0.16"></script>
-  <script src="js/app.js?v=1.0.16"></script>
+  <script src="js/state.js?v=1.0.17"></script>
+  <script src="js/storage.js?v=1.0.17"></script>
+  <script src="js/font-manager.js?v=1.0.17"></script>
+  <script src="js/template-manager.js?v=1.0.17"></script>
+  <script src="js/excel-manager.js?v=1.0.17"></script>
+  <script src="js/auto-mapper.js?v=1.0.17"></script>
+  <script src="js/canvas-editor.js?v=1.0.17"></script>
+  <script src="js/generator-engine.js?v=1.0.17"></script>
+  <script src="js/progress-manager.js?v=1.0.17"></script>
+  <script src="js/reports-manager.js?v=1.0.17"></script>
+  <script src="js/config-manager.js?v=1.0.17"></script>
+  <script src="js/app.js?v=1.0.17"></script>
 
 </body>
 </html>

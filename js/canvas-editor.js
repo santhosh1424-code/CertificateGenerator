@@ -88,6 +88,14 @@ class CanvasEditor {
     else if (propName === 'wordWrap') field.wordWrap = !!val;
     else if (propName === 'lockPosition') field.lockPosition = !!val;
     else if (propName === 'linkedColumn') field.linkedColumn = val;
+    else if (propName === 'rotation' || propName === 'angle') {
+      const rot = parseFloat(val) || 0;
+      field.rotation = rot;
+      field.angle = rot;
+    }
+    else if (propName === 'letterSpacing') {
+      field.letterSpacing = parseInt(val) || 0;
+    }
 
     this.drawCanvas();
     window.appStorage.saveItem('templates', template);
@@ -332,6 +340,20 @@ class CanvasEditor {
       }
     }
 
+    const letterSpacing = parseInt(field.letterSpacing) || 0;
+    if (letterSpacing !== 0 && ('letterSpacing' in ctx)) {
+      ctx.letterSpacing = `${letterSpacing}px`;
+    }
+
+    const rotation = parseFloat(field.rotation || field.angle || 0);
+    if (rotation !== 0) {
+      const centerX = field.x + (field.width / 2);
+      const centerY = field.y + (field.height / 2);
+      ctx.translate(centerX, centerY);
+      ctx.rotate((rotation * Math.PI) / 180);
+      ctx.translate(-centerX, -centerY);
+    }
+
     const align = field.textAlign || 'center';
     let textX = field.x;
     if (align === 'center') {
@@ -405,6 +427,12 @@ class CanvasEditor {
     const propFit = document.getElementById('prop-autofit');
     const propWrap = document.getElementById('prop-wordwrap');
     const propLock = document.getElementById('prop-lock');
+    const propRot = document.getElementById('prop-rotation');
+    const propRotSlider = document.getElementById('prop-rotation-slider');
+    const propRotDisp = document.getElementById('prop-rotation-display');
+    const propSpacing = document.getElementById('prop-letter-spacing');
+    const propSpacingSlider = document.getElementById('prop-letter-spacing-slider');
+    const propSpacingDisp = document.getElementById('prop-letter-spacing-display');
 
     if (propLinked && activeExcel && activeExcel.headers) {
       const currentSelected = field ? (field.linkedColumn || field.field) : '';
@@ -437,6 +465,16 @@ class CanvasEditor {
     if (propFit) propFit.checked = field.autoResize !== false;
     if (propWrap) propWrap.checked = !!field.wordWrap;
     if (propLock) propLock.checked = !!field.lockPosition;
+
+    const rotVal = field.rotation || field.angle || 0;
+    if (propRot) propRot.value = rotVal;
+    if (propRotSlider) propRotSlider.value = rotVal;
+    if (propRotDisp) propRotDisp.textContent = `${rotVal}°`;
+
+    const spacingVal = field.letterSpacing || 0;
+    if (propSpacing) propSpacing.value = spacingVal;
+    if (propSpacingSlider) propSpacingSlider.value = spacingVal;
+    if (propSpacingDisp) propSpacingDisp.textContent = `${spacingVal}px`;
   }
 
   updateDomOverlays() {
@@ -464,6 +502,12 @@ class CanvasEditor {
       overlay.style.top = `${field.y}px`;
       overlay.style.width = `${field.width}px`;
       overlay.style.height = `${field.height}px`;
+
+      const rotation = parseFloat(field.rotation || field.angle || 0);
+      if (rotation !== 0) {
+        overlay.style.transform = `rotate(${rotation}deg)`;
+        overlay.style.transformOrigin = 'center center';
+      }
 
       if (isSelected && !this.editorLocked && !field.lockPosition) {
         const handles = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
@@ -646,9 +690,24 @@ class CanvasEditor {
       if (!template || !window.appState.activeElementId) return;
 
       const field = template.fields.find(f => f.id === window.appState.activeElementId);
-      if (!field || field.lockPosition || this.editorLocked) return;
+      if (!field || this.editorLocked) return;
 
-      const step = e.shiftKey ? 10 : 1;
+      if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        this.rotateActiveElement(-1);
+        return;
+      }
+      if (e.altKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        this.rotateActiveElement(1);
+        return;
+      }
+
+      if (field.lockPosition) return;
+
+      const stepRadio = document.querySelector('input[name="nudge-step"]:checked');
+      const baseStep = stepRadio ? (parseInt(stepRadio.value) || 1) : 1;
+      const step = e.shiftKey ? baseStep * 10 : baseStep;
 
       if (e.key === 'ArrowLeft') { field.x = Math.max(0, field.x - step); this.drawCanvas(); }
       else if (e.key === 'ArrowRight') { field.x = Math.min(template.width - field.width, field.x + step); this.drawCanvas(); }
@@ -803,6 +862,57 @@ class CanvasEditor {
     window.appState.activeElementId = newField.id;
     window.appStorage.saveItem('templates', template);
     this.render();
+  }
+
+  nudgeActiveElement(dx, dy) {
+    const template = window.appState.getActiveTemplate();
+    if (!template || !window.appState.activeElementId) return;
+    const field = template.fields.find(f => f.id === window.appState.activeElementId);
+    if (!field || field.lockPosition || this.editorLocked) return;
+
+    const stepRadio = document.querySelector('input[name="nudge-step"]:checked');
+    const step = stepRadio ? (parseInt(stepRadio.value) || 1) : 1;
+
+    this.safePushHistory();
+    field.x = Math.max(0, Math.min(template.width - field.width, field.x + (dx * step)));
+    field.y = Math.max(0, Math.min(template.height - field.height, field.y + (dy * step)));
+
+    this.drawCanvas();
+    window.appStorage.saveItem('templates', template);
+  }
+
+  rotateActiveElement(deltaAngle) {
+    const template = window.appState.getActiveTemplate();
+    if (!template || !window.appState.activeElementId) return;
+    const field = template.fields.find(f => f.id === window.appState.activeElementId);
+    if (!field || this.editorLocked) return;
+
+    this.safePushHistory();
+    let current = parseFloat(field.rotation || field.angle || 0);
+    let newRot = Math.round((current + deltaAngle) * 10) / 10;
+    if (newRot > 180) newRot -= 360;
+    if (newRot < -180) newRot += 360;
+
+    field.rotation = newRot;
+    field.angle = newRot;
+
+    this.drawCanvas();
+    window.appStorage.saveItem('templates', template);
+  }
+
+  nudgeFontSize(delta) {
+    const template = window.appState.getActiveTemplate();
+    if (!template || !window.appState.activeElementId) return;
+    const field = template.fields.find(f => f.id === window.appState.activeElementId);
+    if (!field || this.editorLocked) return;
+
+    this.safePushHistory();
+    const sz = Math.min(200, Math.max(8, (parseInt(field.fontSize) || 12) + delta));
+    field.fontSize = sz;
+    field.maxFontSize = sz;
+
+    this.drawCanvas();
+    window.appStorage.saveItem('templates', template);
   }
 
   deleteActiveElement() {

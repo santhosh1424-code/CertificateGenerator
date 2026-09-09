@@ -542,7 +542,8 @@ class GeneratorEngine {
           height: Math.round(field.height * scaleY),
           fontSize: Math.round(field.fontSize * scaleY),
           minFontSize: field.minFontSize ? Math.round(field.minFontSize * scaleY) : Math.round(8 * scaleY),
-          maxFontSize: field.maxFontSize ? Math.round(field.maxFontSize * scaleY) : Math.round(field.fontSize * scaleY)
+          maxFontSize: field.maxFontSize ? Math.round(field.maxFontSize * scaleY) : Math.round(field.fontSize * scaleY),
+          letterSpacing: field.letterSpacing ? Math.round(field.letterSpacing * scaleX) : 0
         });
       }
 
